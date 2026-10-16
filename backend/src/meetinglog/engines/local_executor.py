@@ -5,6 +5,7 @@ from pathlib import Path
 from meetinglog.config import Settings
 from meetinglog.db import ApiError
 from meetinglog.domain import StageRequest
+from meetinglog.engines.policy import EnginePolicy
 from meetinglog.recordings.media import normalize
 from meetinglog.recordings.storage import atomic_json
 
@@ -15,7 +16,32 @@ def execute(request: StageRequest, settings: Settings):
 
         normalized = Path(request.output_path).with_suffix(".wav")
         normalize(Path(request.input_path), normalized)
-        return prepared_speech(settings).transcribe(normalized).model_dump(mode="json")
+        from meetinglog.engines.cloud_speech import CloudSpeech
+
+        policy = EnginePolicy(settings)
+        speech = policy.execute(
+            "speech",
+            request.mode,
+            0,
+            lambda: prepared_speech(settings).transcribe(normalized),
+            lambda: CloudSpeech(settings).transcribe(normalized),
+        )
+        atomic_json(
+            Path(request.output_path).with_suffix(".events.json"), {"events": policy.events}
+        )
+        return speech.model_dump(mode="json")
+    if request.stage == "analysis":
+        from meetinglog.analysis.service import AnalysisService
+        from meetinglog.db import Database
+        from meetinglog.domain import Transcript
+
+        transcript = Transcript.model_validate_json(Path(request.input_path).read_text())
+        service = AnalysisService(Database(settings.database_path), settings)
+        version = service.generate_from(transcript, request.mode)
+        atomic_json(
+            Path(request.output_path).with_suffix(".events.json"), {"events": service.events}
+        )
+        return version.model_dump(mode="json")
     raise ApiError("unsupported_stage", "지원하지 않는 처리 단계입니다", 503)
 
 

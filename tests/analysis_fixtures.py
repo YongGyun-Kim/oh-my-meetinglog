@@ -1,0 +1,62 @@
+from meetinglog.domain import AnalysisBody, Speaker, Transcript, Turn
+
+
+def transcript_fixture(recording_id="recording"):
+    return Transcript(
+        id="version-1",
+        recording_id=recording_id,
+        speakers=[Speaker(id="a", display_name="화자 A"), Speaker(id="b", display_name="화자 B")],
+        turns=[
+            Turn(
+                id="t1",
+                start_ms=0,
+                end_ms=2000,
+                speaker_id="a",
+                text_original="언제 서비스를 시작할까요?",
+            ),
+            Turn(
+                id="t2",
+                start_ms=2200,
+                end_ms=5000,
+                speaker_id="b",
+                text_original="다음 주에 시작하겠습니다.",
+            ),
+        ],
+    )
+
+
+def analysis_fixture():
+    return AnalysisBody.model_validate(
+        {
+            "overview": {
+                "kind": "interview",
+                "summary": {
+                    "text": "서비스 시작 일정을 논의했다.",
+                    "evidence_turn_ids": ["t1", "t2"],
+                },
+                "main_topics": [{"text": "서비스 시작 일정", "evidence_turn_ids": ["t1", "t2"]}],
+            },
+            "topics": [
+                {
+                    "title": "시작 일정",
+                    "start_ms": 0,
+                    "end_ms": 5000,
+                    "discussion": [
+                        {"text": "다음 주 시작을 제안했다.", "evidence_turn_ids": ["t2"]}
+                    ],
+                    "different_views": [],
+                    "conclusion": None,
+                    "evidence_turn_ids": ["t1", "t2"],
+                }
+            ],
+            "question_answers": [
+                {
+                    "question": {"text": "서비스 시작 시점", "evidence_turn_ids": ["t1"]},
+                    "answer": {"text": "다음 주에 시작한다.", "evidence_turn_ids": ["t2"]},
+                }
+            ],
+            "agreements": [],
+            "open_questions": [],
+            "actions": [],
+        }
+    )

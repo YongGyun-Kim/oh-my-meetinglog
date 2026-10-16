@@ -88,11 +88,29 @@ class ProcessRunner:
                     )
                 if not output.is_file():
                     raise ApiError("invalid_output", "처리 결과 파일이 생성되지 않았습니다", 503)
+                data = json.loads(output.read_text())
+                metadata = {
+                    key: data[key]
+                    for key in ("provider", "model")
+                    if isinstance(data.get(key), str)
+                }
+                events_file = output.with_suffix(".events.json")
+                if events_file.exists():
+                    events = json.loads(events_file.read_text()).get("events", [])
+                    if events:
+                        metadata.update(
+                            {
+                                key: value
+                                for key, value in events[-1].items()
+                                if key in ("location", "quality", "fallback_reason")
+                            }
+                        )
                 return StageResult(
                     job_id=request.job_id,
                     generation=request.generation,
                     stage=request.stage,
                     artifact_path=str(output),
+                    metadata=metadata,
                 )
             finally:
                 terminate(child)

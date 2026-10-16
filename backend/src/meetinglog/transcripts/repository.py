@@ -1,3 +1,5 @@
+from contextlib import nullcontext
+
 from meetinglog.db import ApiError, Database, require_recording
 from meetinglog.domain import SpeechResult, Transcript, new_id
 
@@ -78,8 +80,11 @@ class TranscriptRepository:
         speech: SpeechResult,
         expected_generation: int,
         producer_job_id: str | None = None,
+        connection=None,
     ) -> Transcript:
-        with self.db.session(immediate=True) as connection:
+        with (
+            nullcontext(connection) if connection is not None else self.db.session(immediate=True)
+        ) as connection:
             record = assert_publishable(
                 connection, recording_id, expected_generation, producer_job_id
             )

@@ -17,6 +17,7 @@ class Worker:
         self.settings, self.db = settings, db
         self.repository = JobRepository(db)
         self.stage_command = stage_command or self.command
+        self.uses_default_executor = stage_command is None
         self.stop = threading.Event()
         self.lock = None
 
@@ -46,13 +47,13 @@ class Worker:
 
     def _speech(self, job: Job, artifact: str):
         speech = SpeechResult.model_validate_json(Path(artifact).read_text())
-        transcript = TranscriptRepository(self.db).save_generated(
-            job.recording_id, speech, job.generation, job.id
-        )
         with self.db.session(immediate=True) as connection:
+            transcript = TranscriptRepository(self.db).save_generated(
+                job.recording_id, speech, job.generation, job.id, connection=connection
+            )
             connection.execute(
-                "UPDATE jobs SET transcript_id=? WHERE id=? AND state='running' AND cancel_requested=0",
-                (transcript.id, job.id),
+                "UPDATE jobs SET transcript_id=?,speech_artifact=?,stage='analysis' WHERE id=? AND state='running' AND cancel_requested=0",
+                (transcript.id, artifact, job.id),
             )
         return speech
 
@@ -82,9 +83,27 @@ class Worker:
         )
         seconds = duration_ms / 1000
         timeout = max(300, seconds * 0.25) if stage == "analysis" else max(180, seconds * 0.5)
-        result = runner.run(request, timeout)
-        if not self.repository.commit_stage(result):
+        try:
+            result = runner.run(request, timeout)
+        except ApiError as error:
+            if error.code == "stage_timeout" and stage == "analysis" and self.uses_default_executor:
+                from meetinglog.engines.local_analysis import unload_ollama
+
+                unload_ollama(self.settings)
+            if (
+                error.code != "stage_timeout"
+                or job.mode != "auto"
+                or not self.settings.openai_api_key
+            ):
+                raise
+            self.repository.event(
+                job.id, stage, "fallback", {"reason": "stage_timeout", "location": "api"}
+            )
+            result = runner.run(request.model_copy(update={"mode": "api"}), timeout)
+            result.metadata["fallback_reason"] = "stage_timeout"
+        if self.repository.cancelled(job.id):
             raise ApiError("job_cancelled", "작업이 취소되었습니다", 409)
+        self.repository.event(job.id, stage, "engine_result", result.metadata)
         return result
 
     def run_once(self) -> bool:
@@ -93,6 +112,7 @@ class Worker:
         job = self.repository.claim()
         if job is None:
             return False
+        analysis_started = False
         try:
             with self.db.session() as connection:
                 record = dict(require_recording(connection, job.recording_id))
@@ -119,6 +139,7 @@ class Worker:
             atomic_json(transcript_path, transcript.model_dump(mode="json"))
             artifact = current_job["analysis_artifact"]
             if not artifact:
+                analysis_started = True
                 artifact = self._stage(
                     job, "analysis", str(transcript_path), record["duration_ms"]
                 ).artifact_path
@@ -138,6 +159,18 @@ class Worker:
                     503,
                 ),
             )
+        finally:
+            final_job = self.repository.raw(job.id)
+            if (
+                analysis_started
+                and self.uses_default_executor
+                and (
+                    self.stop.is_set() or (final_job is not None and final_job["cancel_requested"])
+                )
+            ):
+                from meetinglog.engines.local_analysis import unload_ollama
+
+                unload_ollama(self.settings)
         return True
 
     def run(self):
