@@ -1,4 +1,5 @@
 import json
+from contextlib import nullcontext
 
 from meetinglog.db import ApiError, Database, require_recording
 from meetinglog.domain import Job, Mode, StageResult, new_id, now
@@ -12,8 +13,12 @@ class JobRepository:
     def __init__(self, db: Database):
         self.db = db
 
-    def enqueue(self, recording_id: str, kind: str, transcript_id: str | None, mode: Mode) -> Job:
-        with self.db.session(immediate=True) as connection:
+    def enqueue(
+        self, recording_id: str, kind: str, transcript_id: str | None, mode: Mode, connection=None
+    ) -> Job:
+        with (
+            nullcontext(connection) if connection is not None else self.db.session(immediate=True)
+        ) as connection:
             record = require_recording(connection, recording_id)
             if record["input_state"] != "ready":
                 raise ApiError("input_not_ready", "녹음 저장이 완료된 뒤 처리할 수 있습니다", 409)
@@ -55,6 +60,21 @@ class JobRepository:
                 ),
             )
             return as_job(connection.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone())
+
+    def ensure_initial(self, recording_id: str, mode: Mode) -> Job:
+        with self.db.session(immediate=True) as connection:
+            record = require_recording(connection, recording_id)
+            if record["initial_job_id"]:
+                row = connection.execute(
+                    "SELECT * FROM jobs WHERE id=?", (record["initial_job_id"],)
+                ).fetchone()
+                if row:
+                    return as_job(row)
+            job = self.enqueue(recording_id, "process", None, mode, connection=connection)
+            connection.execute(
+                "UPDATE recordings SET initial_job_id=? WHERE id=?", (job.id, recording_id)
+            )
+            return job
 
     def get(self, job_id: str) -> Job:
         with self.db.session() as connection:

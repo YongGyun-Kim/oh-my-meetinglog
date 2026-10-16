@@ -1,11 +1,20 @@
+import re
+from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, Request, UploadFile
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from pydantic import Field
 
-from meetinglog.db import ApiError
-from meetinglog.domain import Contract, Recording
-from meetinglog.recordings.service import InputService
+from meetinglog.analysis.repository import AnalysisRepository
+from meetinglog.db import ApiError, require_recording
+from meetinglog.domain import AnalysisVersion, Contract, Job, Mode, Recording, Transcript
+from meetinglog.exports import Exporter
+from meetinglog.jobs.repository import JobRepository, as_job
+from meetinglog.recordings.deletion import DeletionService
+from meetinglog.recordings.service import InputService, as_recording
+from meetinglog.settings_api import effective_mode
+from meetinglog.transcripts.repository import TranscriptRepository
 
 router = APIRouter(prefix="/api/recordings", tags=["recordings"])
 
@@ -19,15 +28,44 @@ class FinalizeInput(Contract):
     last_sequence: int = Field(ge=0)
 
 
+class RecordingSummary(Recording):
+    job_state: str | None = None
+    job_stage: str | None = None
+
+
+class RecordingList(Contract):
+    items: list[RecordingSummary]
+
+
+class RecordingDetail(Contract):
+    recording: Recording
+    transcript: Transcript | None
+    analysis: AnalysisVersion | None
+    analysis_stale: bool
+    job: Job | None
+
+
+class ProcessingInput(Contract):
+    mode: Mode
+
+
+class AnalyzeInput(ProcessingInput):
+    transcript_id: str
+
+
 def service(request: Request) -> InputService:
     return InputService(request.app.state.settings, request.app.state.db)
 
 
 @router.post("", response_model=Recording, status_code=201)
 def upload(request: Request, file: UploadFile):
-    return service(request).import_file(
+    recording = service(request).import_file(
         file.filename or "녹음", iter(lambda: file.file.read(1024 * 1024), b"")
     )
+    JobRepository(request.app.state.db).ensure_initial(
+        recording.id, effective_mode(request.app.state.db, request.app.state.settings)
+    )
+    return recording
 
 
 @router.post("/drafts", response_model=Recording, status_code=201)
@@ -51,4 +89,132 @@ async def chunk(request: Request, recording_id: str, sequence: int):
 
 @router.post("/{recording_id}/finalize", response_model=Recording)
 def finalize(request: Request, recording_id: str, body: FinalizeInput):
-    return service(request).finalize(recording_id, body.last_sequence)
+    recording = service(request).finalize(recording_id, body.last_sequence)
+    JobRepository(request.app.state.db).ensure_initial(
+        recording.id, effective_mode(request.app.state.db, request.app.state.settings)
+    )
+    return recording
+
+
+@router.get("", response_model=RecordingList)
+def list_recordings(request: Request):
+    with request.app.state.db.session() as connection:
+        rows = connection.execute(
+            "SELECT r.*,(SELECT state FROM jobs WHERE recording_id=r.id ORDER BY created_at DESC LIMIT 1) AS job_state,(SELECT stage FROM jobs WHERE recording_id=r.id ORDER BY created_at DESC LIMIT 1) AS job_stage FROM recordings r WHERE r.deleted_at IS NULL ORDER BY r.created_at DESC"
+        ).fetchall()
+        return RecordingList(
+            items=[
+                RecordingSummary.model_validate(
+                    {key: row[key] for key in RecordingSummary.model_fields if key in row.keys()}
+                )
+                for row in rows
+            ]
+        )
+
+
+@router.get("/{recording_id}", response_model=RecordingDetail)
+def detail(request: Request, recording_id: str):
+    db = request.app.state.db
+    with db.session() as connection:
+        recording = as_recording(require_recording(connection, recording_id))
+        row = connection.execute(
+            "SELECT * FROM jobs WHERE recording_id=? ORDER BY created_at DESC LIMIT 1",
+            (recording_id,),
+        ).fetchone()
+        job = as_job(row) if row else None
+    transcript = TranscriptRepository(db).current(recording_id)
+    analysis = AnalysisRepository(db).current(recording_id)
+    return RecordingDetail(
+        recording=recording,
+        transcript=transcript,
+        analysis=analysis,
+        analysis_stale=bool(
+            analysis and (transcript is None or analysis.transcript_id != transcript.id)
+        ),
+        job=job,
+    )
+
+
+def audio_type(path: Path) -> str | None:
+    with path.open("rb") as source:
+        header = source.read(16)
+    if header[:4] == b"RIFF" and header[8:12] == b"WAVE":
+        return "audio/wav"
+    if header[4:8] == b"ftyp":
+        return "audio/mp4"
+    if header[:4] == b"\x1aE\xdf\xa3":
+        return "audio/webm"
+    if header[:3] == b"ID3" or (len(header) > 1 and header[0] == 255 and header[1] & 224 == 224):
+        return "audio/mpeg"
+    if header[:4] == b"fLaC":
+        return "audio/flac"
+    return None
+
+
+@router.get("/{recording_id}/audio")
+def audio(request: Request, recording_id: str):
+    with request.app.state.db.session() as connection:
+        row = require_recording(connection, recording_id)
+        path = Path(row["original_path"]) if row["original_path"] else None
+        normalized = row["normalized_path"]
+    if path is None or not path.is_file():
+        raise ApiError("audio_unavailable", "재생할 음성이 없습니다", 404)
+    content_type = audio_type(path)
+    if content_type is None:
+        if not normalized or not Path(normalized).is_file():
+            raise ApiError("audio_not_ready", "재생용 음성을 준비하고 있습니다", 503)
+        path, content_type = Path(normalized), "audio/wav"
+    requested = request.headers.get("range")
+    if requested:
+        match = re.fullmatch(r"bytes=(\d*)-(\d*)", requested)
+        if (
+            match is None
+            or (not match[1] and not match[2])
+            or (match[1] and int(match[1]) >= path.stat().st_size)
+            or (match[1] and match[2] and int(match[2]) < int(match[1]))
+        ):
+            raise ApiError("invalid_range", "재생 범위가 올바르지 않습니다", 416)
+    return FileResponse(
+        path, media_type=content_type, headers={"X-Content-Type-Options": "nosniff"}
+    )
+
+
+@router.post("/{recording_id}/process", response_model=Job)
+def process(request: Request, recording_id: str, body: ProcessingInput):
+    return JobRepository(request.app.state.db).enqueue(recording_id, "process", None, body.mode)
+
+
+@router.post("/{recording_id}/analyze", response_model=Job)
+def analyze(request: Request, recording_id: str, body: AnalyzeInput):
+    return JobRepository(request.app.state.db).enqueue(
+        recording_id, "analyze", body.transcript_id, body.mode
+    )
+
+
+@router.delete("/{recording_id}", status_code=202)
+def delete(request: Request, recording_id: str):
+    DeletionService(request.app.state.settings, request.app.state.db).request(recording_id)
+    return {"status": "deleting"}
+
+
+@router.get("/{recording_id}/export")
+def export(
+    request: Request,
+    recording_id: str,
+    format: Literal["json", "markdown"] = "json",
+    transcript_id: str | None = None,
+    analysis_id: str | None = None,
+):
+    exporter = Exporter(request.app.state.db)
+    payload = exporter.payload(recording_id, transcript_id, analysis_id)
+    extension = "json" if format == "json" else "md"
+    headers = {
+        "Content-Disposition": f'attachment; filename="recording-{recording_id}.{extension}"'
+    }
+    return (
+        JSONResponse(payload, headers=headers)
+        if format == "json"
+        else PlainTextResponse(
+            exporter.markdown(payload), media_type="text/markdown", headers=headers
+        )
+    )

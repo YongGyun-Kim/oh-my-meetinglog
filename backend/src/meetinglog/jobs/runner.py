@@ -55,6 +55,12 @@ class Worker:
                 "UPDATE jobs SET transcript_id=?,speech_artifact=?,stage='analysis' WHERE id=? AND state='running' AND cancel_requested=0",
                 (transcript.id, artifact, job.id),
             )
+            normalized = Path(artifact).with_suffix(".wav")
+            if normalized.is_file():
+                connection.execute(
+                    "UPDATE recordings SET normalized_path=? WHERE id=? AND deleted_at IS NULL",
+                    (str(normalized), job.recording_id),
+                )
         return speech
 
     def _stage(self, job: Job, stage: str, input_path: str, duration_ms: int):
@@ -109,6 +115,9 @@ class Worker:
     def run_once(self) -> bool:
         if self.lock is None:
             raise RuntimeError("Worker must hold its singleton lock")
+        from meetinglog.recordings.deletion import DeletionService
+
+        DeletionService(self.settings, self.db).cleanup_pending()
         job = self.repository.claim()
         if job is None:
             return False
