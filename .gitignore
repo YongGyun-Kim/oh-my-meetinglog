@@ -16,4 +16,5 @@ web/test-results/
 .playwright-mcp/
 .superpowers/
 .DS_Store
+*.tsbuildinfo
 evaluation/private/
