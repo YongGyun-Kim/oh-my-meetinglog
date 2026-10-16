@@ -10,3 +10,4 @@
 - [구현 계획](docs/superpowers/plans/2026-10-16-local-conversation-records.md)
 - [Plaud 음성 전처리 조사](docs/research/2026-10-16-plaud-audio-preprocessing.md)
 - [음성 모델 후보·제약·평가 기준](docs/research/2026-10-16-audio-model-candidates.md)
+- [맥북·아이폰 웹 적용성 및 실제 확인 범위](docs/research/2026-10-16-macbook-iphone-web-feasibility.md)

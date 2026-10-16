@@ -4,6 +4,8 @@
 
 관련 문서: [Plaud 전처리 조사](2026-10-16-plaud-audio-preprocessing.md), [기존 설계안](../superpowers/specs/2026-10-16-local-conversation-records-design.md), [기존 구현 계획](../superpowers/plans/2026-10-16-local-conversation-records.md).
 
+후속 확인: [맥북·아이폰 웹 적용성](2026-10-16-macbook-iphone-web-feasibility.md). macOS Chrome에서 API와 합성 톤 인코딩을 확인했으며, 실제 마이크·아이폰·모델 추론 검증과 구분한다.
+
 ## 1. 제품 조건과 비교 원칙
 
 - 한국어 1:1 인터뷰·상담으로 시작하고 **추후 다대다 대화도 지원**한다.

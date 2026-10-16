@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "checked_date": "2026-10-16",
+  "checked_at_note": "Date verified during this session; precise probe timestamp is not recorded.",
+  "page_origin": "https://example.com",
+  "environment": "Controlled desktop Chrome browser reporting macOS; physical microphone and iPhone not tested.",
+  "capabilities": {
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+    "platform": "MacIntel",
+    "secureContext": true,
+    "getUserMedia": true,
+    "mediaRecorder": true,
+    "audioWorklet": true,
+    "wakeLock": true,
+    "webAssembly": true,
+    "webGPU": true,
+    "supportedConstraints": {
+      "aspectRatio": true,
+      "autoGainControl": true,
+      "brightness": true,
+      "channelCount": true,
+      "colorTemperature": true,
+      "contrast": true,
+      "deviceId": true,
+      "displaySurface": true,
+      "echoCancellation": true,
+      "exposureCompensation": true,
+      "exposureMode": true,
+      "exposureTime": true,
+      "facingMode": true,
+      "focusDistance": true,
+      "focusMode": true,
+      "frameRate": true,
+      "groupId": true,
+      "height": true,
+      "iso": true,
+      "latency": true,
+      "noiseSuppression": true,
+      "pan": true,
+      "pointsOfInterest": true,
+      "resizeMode": true,
+      "restrictOwnAudio": true,
+      "sampleRate": true,
+      "sampleSize": true,
+      "saturation": true,
+      "sharpness": true,
+      "suppressLocalAudioPlayback": true,
+      "tilt": true,
+      "torch": true,
+      "voiceIsolation": true,
+      "whiteBalanceMode": true,
+      "width": true,
+      "zoom": true
+    },
+    "mimeTypes": {
+      "audio/webm;codecs=opus": true,
+      "audio/mp4;codecs=mp4a.40.2": true,
+      "audio/mp4": true,
+      "audio/mp4;codecs=alac": false,
+      "audio/mp4;codecs=pcm": false,
+      "audio/ogg;codecs=opus": false,
+      "audio/wav": false
+    },
+    "microphoneRequested": false,
+    "webGPUAdapterAvailable": true,
+    "shaderF16": true
+  },
+  "synthetic_recording": {
+    "source": "synthetic-440Hz-tone",
+    "microphoneRequested": false,
+    "speakerOutputConnected": false,
+    "formats": [
+      {
+        "requestedMimeType": "audio/webm;codecs=opus",
+        "actualMimeType": "audio/webm;codecs=opus",
+        "chunkCount": 5,
+        "chunkArrivalMs": [
+          276,
+          575,
+          879,
+          1177,
+          1254
+        ],
+        "blobBytes": 18563,
+        "decodedDurationSeconds": 1.14,
+        "decodedSampleRate": 48000,
+        "decodedChannelCount": 2,
+        "rms": 0.14137446132433384
+      },
+      {
+        "requestedMimeType": "audio/mp4;codecs=mp4a.40.2",
+        "actualMimeType": "audio/mp4;codecs=mp4a.40.2",
+        "chunkCount": 5,
+        "chunkArrivalMs": [
+          273,
+          534,
+          785,
+          1046,
+          1255
+        ],
+        "blobBytes": 5504,
+        "decodedDurationSeconds": 1.2583333333333333,
+        "decodedSampleRate": 48000,
+        "decodedChannelCount": 2,
+        "rms": 0.13892192808968856
+      }
+    ]
+  },
+  "limits": [
+    "No microphone permission was requested and no ambient audio was captured.",
+    "The source was a generated 440 Hz tone, not a speech recording.",
+    "No user-facing speaker output was connected.",
+    "getSupportedConstraints reports browser recognition, not actual microphone settings or raw microphone array access.",
+    "WebGPU adapter availability does not verify model conversion, execution, quality, speed, or memory use.",
+    "This is not evidence for Safari or iPhone compatibility, LAN HTTPS access, interruptions, or long recordings.",
+    "Decoded synthetic output is stereo because the generated Web Audio destination was stereo; it is not a physical microphone channel measurement."
+  ]
+}

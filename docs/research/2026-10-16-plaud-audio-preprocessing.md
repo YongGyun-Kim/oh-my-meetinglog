@@ -4,6 +4,8 @@
 
 관련 문서: [모델 후보 정리](2026-10-16-audio-model-candidates.md), [기존 MVP 설계안](../superpowers/specs/2026-10-16-local-conversation-records-design.md).
 
+후속 확인: [맥북·아이폰 웹 적용성](2026-10-16-macbook-iphone-web-feasibility.md)에 웹에서 가능한 수음·전처리 범위와 실제 검증 상태를 기록했다.
+
 ## 1. 확인한 핵심
 
 Plaud가 공개한 방식은 **전용 마이크로 수음하고, 기기에서 신호를 처리하며, 목적에 따라 다른 음성을 전사와 재생에 사용하는 구조**다. 특정 음원 분리 모델 하나로 녹음 전체를 정리한다는 설명은 확인하지 못했다.
