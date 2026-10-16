@@ -10,6 +10,8 @@
 
 **Spec:** [사용자 승인 설계안](../specs/2026-10-16-local-conversation-records-design.md). 승인일: 2026-10-16. 이 계획은 설계안의 실행 순서를 정의하며 제품 코드가 아니다.
 
+**후속 조사(2026-10-16):** 모델 선택 전 [Plaud 전처리 조사](../../research/2026-10-16-plaud-audio-preprocessing.md)와 [모델 후보·평가 기준](../../research/2026-10-16-audio-model-candidates.md)을 확인한다. 다대다 대화 요구와 추가 후보가 생겼으며, 아래 초기 엔진명은 확정 선택이 아니다. 엔진 관련 실행 항목은 모델 결정 후 갱신한다.
+
 ## Global Constraints
 
 아래 제품 조건은 승인 설계안에서 그대로 가져왔다.
