@@ -443,6 +443,28 @@ export interface components {
       /** Main Topics */
       main_topics: components["schemas"]["Fact"][];
     };
+    /** ProcessingEvent */
+    ProcessingEvent: {
+      /** Kind */
+      kind: string;
+      /**
+       * Mode
+       * @enum {string}
+       */
+      mode: "auto" | "local_only" | "api";
+      /** State */
+      state: string;
+      /** Stage */
+      stage: string;
+      /** Event */
+      event: string;
+      /** Created At */
+      created_at: string;
+      /** Metadata */
+      metadata: {
+        [key: string]: string | number | boolean | null;
+      };
+    };
     /** ProcessingInput */
     ProcessingInput: {
       /**
@@ -507,6 +529,8 @@ export interface components {
       /** Analysis Stale */
       analysis_stale: boolean;
       job: components["schemas"]["Job"] | null;
+      /** Processing History */
+      processing_history: components["schemas"]["ProcessingEvent"][];
     };
     /** RecordingList */
     RecordingList: {

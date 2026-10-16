@@ -1,4 +1,5 @@
 import hashlib
+import os
 import shutil
 from collections.abc import Iterable
 from pathlib import Path
@@ -49,44 +50,52 @@ class InputService:
         if sequence < 0 or sequence > 100_000 or not body:
             raise ApiError("invalid_chunk", "녹음 데이터가 비어 있거나 순서가 잘못되었습니다")
         digest = hashlib.sha256(body).hexdigest()
-        with self.db.session(immediate=True) as connection:
-            record = require_recording(connection, recording_id)
-            previous = connection.execute(
-                "SELECT * FROM chunks WHERE recording_id=? AND sequence=?", (recording_id, sequence)
-            ).fetchone()
-            if previous:
-                if previous["digest"] != digest:
-                    raise InputConflict()
-                return digest
-            if record["input_state"] not in ("recording", "uploading"):
-                raise InputConflict("input_closed", "이미 종료된 녹음입니다")
-            if record["byte_count"] + len(body) > self.settings.max_upload_bytes:
-                raise ApiError("input_too_large", "파일은 최대 1GB까지 가져올 수 있습니다", 413)
-            path = self.storage.directory(recording_id) / "chunks" / f"{sequence:06d}.bin"
-            atomic_write(path, body)
-            connection.execute(
-                "INSERT INTO chunks VALUES (?,?,?,?)", (recording_id, sequence, digest, len(body))
-            )
-            connection.execute(
-                "UPDATE recordings SET byte_count=byte_count+? WHERE id=?",
-                (len(body), recording_id),
-            )
-        return digest
-
-    def finalize(self, recording_id: str, last_sequence: int) -> Recording:
-        try:
+        with self.storage.input_lock(recording_id):
             with self.db.session(immediate=True) as connection:
                 record = require_recording(connection, recording_id)
-                if record["input_state"] == "ready":
-                    return as_recording(record)
-                rows = connection.execute(
-                    "SELECT sequence FROM chunks WHERE recording_id=? ORDER BY sequence",
-                    (recording_id,),
-                ).fetchall()
-                if last_sequence < 0 or [row[0] for row in rows] != list(range(last_sequence + 1)):
-                    raise InputConflict(
-                        "missing_chunk", "녹음 데이터 일부가 아직 저장되지 않았습니다"
-                    )
+                previous = connection.execute(
+                    "SELECT * FROM chunks WHERE recording_id=? AND sequence=?",
+                    (recording_id, sequence),
+                ).fetchone()
+                if previous:
+                    if previous["digest"] != digest:
+                        raise InputConflict()
+                    return digest
+                if record["input_state"] not in ("recording", "uploading"):
+                    raise InputConflict("input_closed", "이미 종료된 녹음입니다")
+                if record["byte_count"] + len(body) > self.settings.max_upload_bytes:
+                    raise ApiError("input_too_large", "파일은 최대 1GB까지 가져올 수 있습니다", 413)
+                path = self.storage.directory(recording_id) / "chunks" / f"{sequence:06d}.bin"
+                atomic_write(path, body)
+                connection.execute(
+                    "INSERT INTO chunks VALUES (?,?,?,?)",
+                    (recording_id, sequence, digest, len(body)),
+                )
+                connection.execute(
+                    "UPDATE recordings SET byte_count=byte_count+? WHERE id=?",
+                    (len(body), recording_id),
+                )
+            return digest
+
+    def finalize(self, recording_id: str, last_sequence: int) -> Recording:
+        # Freeze only this input; long assembly/decoding must not hold SQLite's write lock.
+        with self.storage.input_lock(recording_id):
+            try:
+                with self.db.session() as connection:
+                    record = require_recording(connection, recording_id)
+                    if record["input_state"] == "ready":
+                        return as_recording(record)
+                    generation = record["generation"]
+                    rows = connection.execute(
+                        "SELECT sequence FROM chunks WHERE recording_id=? ORDER BY sequence",
+                        (recording_id,),
+                    ).fetchall()
+                    if last_sequence < 0 or [row[0] for row in rows] != list(
+                        range(last_sequence + 1)
+                    ):
+                        raise InputConflict(
+                            "missing_chunk", "녹음 데이터 일부가 아직 저장되지 않았습니다"
+                        )
                 directory = self.storage.directory(recording_id)
                 original = directory / "original"
                 temporary = directory / "original.part"
@@ -94,23 +103,29 @@ class InputService:
                     for row in rows:
                         with (directory / "chunks" / f"{row[0]:06d}.bin").open("rb") as source:
                             shutil.copyfileobj(source, output, 1024 * 1024)
+                    output.flush()
+                    os.fsync(output.fileno())
                 temporary.replace(original)
                 info = probe(original)
                 if info.duration_ms > self.settings.max_duration_ms:
                     raise ApiError("input_too_long", "최대 2시간의 녹음만 처리할 수 있습니다")
-                connection.execute(
-                    "UPDATE recordings SET input_state='ready',duration_ms=?,original_path=?,error_code=NULL WHERE id=?",
-                    (info.duration_ms, str(original), recording_id),
-                )
-                return as_recording(require_recording(connection, recording_id))
-        except ApiError as error:
-            if error.status != 409:
                 with self.db.session(immediate=True) as connection:
+                    current = require_recording(connection, recording_id)
+                    if current["generation"] != generation:
+                        raise InputConflict("stale_generation", "녹음 상태가 변경되었습니다")
                     connection.execute(
-                        "UPDATE recordings SET input_state='invalid',error_code=? WHERE id=? AND deleted_at IS NULL",
-                        (error.code, recording_id),
+                        "UPDATE recordings SET input_state='ready',duration_ms=?,original_path=?,error_code=NULL WHERE id=?",
+                        (info.duration_ms, str(original), recording_id),
                     )
-            raise
+                    return as_recording(require_recording(connection, recording_id))
+            except ApiError as error:
+                if error.status != 409:
+                    with self.db.session(immediate=True) as connection:
+                        connection.execute(
+                            "UPDATE recordings SET input_state='invalid',error_code=? WHERE id=? AND deleted_at IS NULL",
+                            (error.code, recording_id),
+                        )
+                raise
 
     def import_file(self, filename: str, chunks: Iterable[bytes]) -> Recording:
         safe_name = Path(filename.replace("\\", "/")).name[:200]

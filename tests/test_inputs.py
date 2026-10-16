@@ -62,3 +62,32 @@ def test_oversized_duration_is_invalid(input_service, tmp_path):
     input_service.settings.max_duration_ms = 500
     with pytest.raises(ApiError):
         input_service.import_file("long.wav", [write_silence(tmp_path / "long.wav").read_bytes()])
+
+
+def test_finalize_validation_does_not_block_unrelated_database_writes(
+    input_service, db, tmp_path, monkeypatch
+):
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    from meetinglog.jobs.repository import JobRepository
+    from meetinglog.recordings.media import probe as real_probe
+
+    record = input_service.create("microphone", "녹음")
+    input_service.append_chunk(record.id, 0, write_silence(tmp_path / "probe.wav").read_bytes())
+    entered, release = threading.Event(), threading.Event()
+
+    def slow_probe(path):
+        entered.set()
+        assert release.wait(3)
+        return real_probe(path)
+
+    monkeypatch.setattr("meetinglog.recordings.service.probe", slow_probe)
+    with ThreadPoolExecutor(2) as pool:
+        finalizing = pool.submit(input_service.finalize, record.id, 0)
+        assert entered.wait(1)
+        try:
+            pool.submit(JobRepository(db).heartbeat, "unrelated").result(timeout=0.4)
+        finally:
+            release.set()
+        assert finalizing.result(timeout=2).input_state == "ready"

@@ -18,7 +18,9 @@ def execute(request: StageRequest, settings: Settings):
         normalize(Path(request.input_path), normalized)
         from meetinglog.engines.cloud_speech import CloudSpeech
 
-        policy = EnginePolicy(settings)
+        policy = EnginePolicy(
+            settings, event_path=Path(request.output_path).with_suffix(".events.jsonl")
+        )
         speech = policy.execute(
             "speech",
             request.mode,
@@ -36,7 +38,11 @@ def execute(request: StageRequest, settings: Settings):
         from meetinglog.domain import Transcript
 
         transcript = Transcript.model_validate_json(Path(request.input_path).read_text())
-        service = AnalysisService(Database(settings.database_path), settings)
+        service = AnalysisService(
+            Database(settings.database_path),
+            settings,
+            event_path=Path(request.output_path).with_suffix(".events.jsonl"),
+        )
         version = service.generate_from(transcript, request.mode)
         atomic_json(
             Path(request.output_path).with_suffix(".events.json"), {"events": service.events}

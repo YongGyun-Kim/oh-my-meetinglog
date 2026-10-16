@@ -33,14 +33,19 @@ class DeletionService:
             ]
         count = 0
         for identifier in pending:
-            try:
-                shutil.rmtree(Storage(self.settings.data_dir).directory(identifier))
-            except FileNotFoundError:
-                pass
-            except OSError:
-                continue
-            with self.db.session(immediate=True) as connection:
-                count += connection.execute(
-                    "DELETE FROM recordings WHERE id=? AND deleted_at IS NOT NULL", (identifier,)
-                ).rowcount
+            storage = Storage(self.settings.data_dir)
+            with storage.input_lock(identifier, blocking=False) as acquired:
+                if not acquired:
+                    continue
+                try:
+                    shutil.rmtree(storage.directory(identifier))
+                except FileNotFoundError:
+                    pass
+                except OSError:
+                    continue
+                with self.db.session(immediate=True) as connection:
+                    count += connection.execute(
+                        "DELETE FROM recordings WHERE id=? AND deleted_at IS NOT NULL",
+                        (identifier,),
+                    ).rowcount
         return count

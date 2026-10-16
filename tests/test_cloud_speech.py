@@ -77,3 +77,28 @@ def test_oversized_part_never_reaches_external_client(settings, tmp_path, monkey
     )
     with pytest.raises(ApiError):
         CloudSpeech(settings, client).transcribe(source)
+
+
+def test_distinct_speakers_overlapping_acknowledgments_are_preserved(
+    settings, tmp_path, monkeypatch
+):
+    from meetinglog.engines.cloud_speech import CloudSpeech
+    from meetinglog.recordings.cloud_audio import AudioPart
+
+    source = write_silence(tmp_path / "overlap.wav", seconds=3)
+    monkeypatch.setattr(
+        "meetinglog.engines.cloud_speech.prepare_uploads", lambda path: [AudioPart(source, 0, 0)]
+    )
+    response = {
+        "segments": [
+            {"start": 1, "end": 1.5, "speaker": "A", "text": "네"},
+            {"start": 1.1, "end": 1.6, "speaker": "B", "text": "네"},
+        ]
+    }
+    client = SimpleNamespace(
+        audio=SimpleNamespace(transcriptions=SimpleNamespace(create=lambda **kwargs: response))
+    )
+    result = CloudSpeech(settings, client).transcribe(source)
+    assert len(result.turns) == 2
+    assert result.turns[0].speaker_id != result.turns[1].speaker_id
+    assert all("overlap" in turn.review_flags for turn in result.turns)

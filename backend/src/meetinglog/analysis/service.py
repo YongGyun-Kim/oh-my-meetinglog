@@ -88,9 +88,10 @@ def analyze_with(engine: AnalysisEngine, transcript: Transcript) -> AnalysisBody
 
 
 class AnalysisService:
-    def __init__(self, db: Database, settings: Settings | None = None):
+    def __init__(self, db: Database, settings: Settings | None = None, *, event_path=None):
         self.db, self.settings = db, settings or Settings()
         self.events = []
+        self.event_path = event_path
 
     def generate(
         self, transcript_id: str, mode: Mode, producer_job_id: str | None = None
@@ -113,7 +114,8 @@ class AnalysisService:
                     revisions["analysis"] = digest
             except ApiError as error:
                 local_error = error
-        policy = EnginePolicy(self.settings, revisions)
+        policy = EnginePolicy(self.settings, revisions, event_path=self.event_path)
+        self.events = policy.events
 
         def run(engine):
             return AnalysisVersion(

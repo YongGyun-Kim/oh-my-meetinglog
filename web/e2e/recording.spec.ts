@@ -116,3 +116,61 @@ test("captures fake microphone audio and finalizes before processing", async ({
   expect(detail.recording.input_state).toBe("ready");
   expect(detail.job.state).toBe("succeeded");
 });
+test("preserves an edit while scrolling a long virtual transcript", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.addInitScript(() => {
+    const state = window as unknown as { layoutErrors: string[] };
+    state.layoutErrors = [];
+    window.addEventListener("error", (event) =>
+      state.layoutErrors.push(event.message),
+    );
+  });
+  const response = await page.request.post("/api/recordings", {
+    multipart: {
+      file: { name: "긴 전사 검증.wav", mimeType: "audio/wav", buffer: wav() },
+    },
+  });
+  const recording = await response.json();
+  await page.route(`**/api/recordings/${recording.id}`, async (route) => {
+    const response = await route.fetch();
+    const detail = await response.json();
+    if (detail.transcript?.turns.length) {
+      const source = detail.transcript.turns[0];
+      detail.transcript.turns.push(
+        ...Array.from({ length: 500 }, (_, index) => ({
+          ...source,
+          id: `extra-${index}`,
+          text_original: `긴 전사 시험 발언 ${index}`,
+        })),
+      );
+    }
+    await route.fulfill({ response, json: detail });
+  });
+  await page.goto(`/#record/${recording.id}`);
+  await page
+    .getByRole("button", { name: "발언 수정", exact: true })
+    .first()
+    .click();
+  await page
+    .getByLabel("발언 내용", { exact: true })
+    .fill("스크롤 후에도 남아야 하는 초안");
+  await page.locator(".transcript-scroll").evaluate((element) => {
+    element.scrollTop = 30_000;
+  });
+  await expect(page.getByTestId("turn-t1")).not.toBeAttached();
+  await page.locator(".transcript-scroll").evaluate((element) => {
+    element.scrollTop = 0;
+  });
+  await expect(page.getByLabel("발언 내용", { exact: true })).toHaveValue(
+    "스크롤 후에도 남아야 하는 초안",
+  );
+  expect(errors).toEqual([]);
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { layoutErrors: string[] }).layoutErrors,
+    ),
+  ).toEqual([]);
+});

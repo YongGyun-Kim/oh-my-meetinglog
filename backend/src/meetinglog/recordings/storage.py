@@ -1,5 +1,7 @@
+import fcntl
 import json
 import os
+from contextlib import contextmanager
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -34,3 +36,19 @@ class Storage:
         except ValueError as error:
             raise ApiError("not_found", "기록을 찾을 수 없습니다", 404) from error
         return self.root / recording_id
+
+    @contextmanager
+    def input_lock(self, recording_id: str, *, blocking: bool = True):
+        self.directory(recording_id)  # Validate before forming the lock filename.
+        path = self.root.parent / "input-locks" / f"{recording_id}.lock"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB))
+            except BlockingIOError:
+                yield False
+                return
+            try:
+                yield True
+            finally:
+                fcntl.flock(lock, fcntl.LOCK_UN)

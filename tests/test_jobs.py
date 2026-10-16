@@ -102,3 +102,56 @@ def test_worker_restart_publishes_completed_speech_without_rerunning(jobs, setti
     assert completed.state == "succeeded"
     assert completed.stage == "no_speech"
     assert TranscriptRepository(repository.db).current(recording.id).turns == []
+
+
+@pytest.mark.parametrize("failed", [False, True])
+def test_stage_attempt_history_survives_success_or_failure(
+    settings, db, input_service, tmp_path, failed
+):
+    import json
+    import sys
+
+    from meetinglog.jobs.repository import JobRepository
+    from meetinglog.jobs.runner import Worker
+
+    from tests.audio_fixtures import write_silence
+
+    record = input_service.import_file(
+        "audio.wav", [write_silence(tmp_path / "history.wav").read_bytes()]
+    )
+    job = JobRepository(db).enqueue(record.id, "process", None, "local_only")
+
+    def command(request):
+        script = """
+import json,sys
+from pathlib import Path
+path=Path(sys.argv[1]);path.parent.mkdir(parents=True,exist_ok=True)
+events=[{'event':'retry','location':'api','attempt':1,'reason':'upstream_network','duplicate_cost_possible':True,'secret':'never-store'}, {'event':'request_started','location':'api','attempt':2,'duplicate_cost_possible':True}]
+path.with_suffix('.events.jsonl').write_text(''.join(json.dumps(event)+'\\n' for event in events))
+if sys.argv[2]=='True':sys.exit(1)
+path.write_text(json.dumps({'turns':[],'speakers':[],'no_speech':True,'provider':'test','model':'fixed'}))
+"""
+        return [sys.executable, "-c", script, request.output_path, str(failed)]
+
+    with Worker(settings, db, stage_command=command) as worker:
+        worker.run_once()
+    with db.session() as connection:
+        events = [
+            json.loads(row[0])
+            for row in connection.execute(
+                "SELECT metadata FROM job_events WHERE job_id=? AND event IN ('retry','request_started') ORDER BY id",
+                (job.id,),
+            )
+        ]
+    assert [event["attempt"] for event in events] == [1, 2]
+    assert events[0]["duplicate_cost_possible"] is True
+    assert "never-store" not in json.dumps(events)
+    # Crash-recovery ingestion is idempotent and the exported history retains cost warnings.
+    with Worker(settings, db):
+        pass
+    from meetinglog.exports import processing_history
+
+    with db.session() as connection:
+        history = processing_history(connection, record.id)
+    assert len([entry for entry in history if entry["event"] == "retry"]) == 1
+    assert any(entry["metadata"].get("duplicate_cost_possible") for entry in history)

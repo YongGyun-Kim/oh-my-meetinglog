@@ -145,17 +145,20 @@ class JobRepository:
                 (now().isoformat(), job_id),
             )
 
-    def event(self, job_id: str, stage: str, event: str, metadata: dict):
+    def event(
+        self, job_id: str, stage: str, event: str, metadata: dict, source_key: str | None = None
+    ):
         with self.db.session() as connection:
             if connection.execute("SELECT 1 FROM jobs WHERE id=?", (job_id,)).fetchone():
                 connection.execute(
-                    "INSERT INTO job_events(job_id,created_at,stage,event,metadata) VALUES (?,?,?,?,?)",
+                    "INSERT OR IGNORE INTO job_events(job_id,created_at,stage,event,metadata,source_key) VALUES (?,?,?,?,?,?)",
                     (
                         job_id,
                         now().isoformat(),
                         stage,
                         event,
                         json.dumps(metadata, ensure_ascii=False),
+                        source_key,
                     ),
                 )
 

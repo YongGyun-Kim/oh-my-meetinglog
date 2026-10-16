@@ -74,9 +74,10 @@ def stage_timeout_seconds(stage: str, duration_ms: int) -> float:
 
 
 class EnginePolicy:
-    def __init__(self, settings: Settings, revisions: dict | None = None):
+    def __init__(self, settings: Settings, revisions: dict | None = None, *, event_path=None):
         self.settings = settings
         self.events = []
+        self.event_path = event_path
         manifest = ModelRegistry(settings).read().get("models", {})
         speech_revision = hashlib.sha256(
             json.dumps(
@@ -88,6 +89,13 @@ class EnginePolicy:
             ).encode()
         ).hexdigest()
         self.revisions = {"speech": speech_revision, **(revisions or {})}
+
+    def record(self, event: dict):
+        self.events.append(event)
+        if self.event_path is not None:
+            from meetinglog.jobs.events import append_event
+
+            append_event(self.event_path, event)
 
     def profile(self, stage: str) -> QualityProfile | None:
         try:
@@ -134,9 +142,18 @@ class EnginePolicy:
             mode == "auto" and quality == "failed" and self.settings.openai_api_key
         ):
             try:
-                result = local()
-                self.events.append(
+                self.record(
                     {
+                        "stage": stage,
+                        "event": "local_started",
+                        "location": "local",
+                        "quality": quality,
+                    }
+                )
+                result = local()
+                self.record(
+                    {
+                        "event": "engine_result",
                         "stage": stage,
                         "location": "local",
                         "quality": quality,
@@ -165,10 +182,28 @@ class EnginePolicy:
             reason = "local_quality_failed"
         if not self.settings.openai_api_key:
             raise StageUnavailable("api_not_configured", "서버에 외부 API 키를 설정하세요", 503)
-        result = retry(
-            cloud,
-            on_retry=lambda attempt, error: self.events.append(
+        attempt_count = 0
+
+        def request_cloud():
+            nonlocal attempt_count
+            attempt_count += 1
+            self.record(
                 {
+                    "stage": stage,
+                    "event": "request_started",
+                    "location": "api",
+                    "attempt": attempt_count,
+                    "fallback_reason": reason,
+                    "duplicate_cost_possible": attempt_count > 1,
+                }
+            )
+            return cloud()
+
+        result = retry(
+            request_cloud,
+            on_retry=lambda attempt, error: self.record(
+                {
+                    "event": "retry",
                     "stage": stage,
                     "location": "api",
                     "attempt": attempt,
@@ -177,7 +212,13 @@ class EnginePolicy:
                 }
             ),
         )
-        self.events.append(
-            {"stage": stage, "location": "api", "quality": "unverified", "fallback_reason": reason}
+        self.record(
+            {
+                "event": "engine_result",
+                "stage": stage,
+                "location": "api",
+                "quality": "unverified",
+                "fallback_reason": reason,
+            }
         )
         return result

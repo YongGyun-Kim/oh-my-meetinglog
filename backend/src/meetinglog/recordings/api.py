@@ -9,7 +9,7 @@ from pydantic import Field
 from meetinglog.analysis.repository import AnalysisRepository
 from meetinglog.db import ApiError, require_recording
 from meetinglog.domain import AnalysisVersion, Contract, Job, Mode, Recording, Transcript
-from meetinglog.exports import Exporter
+from meetinglog.exports import Exporter, processing_history
 from meetinglog.jobs.repository import JobRepository, as_job
 from meetinglog.recordings.deletion import DeletionService
 from meetinglog.recordings.service import InputService, as_recording
@@ -37,12 +37,23 @@ class RecordingList(Contract):
     items: list[RecordingSummary]
 
 
+class ProcessingEvent(Contract):
+    kind: str
+    mode: Mode
+    state: str
+    stage: str
+    event: str
+    created_at: str
+    metadata: dict[str, str | int | float | bool | None]
+
+
 class RecordingDetail(Contract):
     recording: Recording
     transcript: Transcript | None
     analysis: AnalysisVersion | None
     analysis_stale: bool
     job: Job | None
+    processing_history: list[ProcessingEvent]
 
 
 class ProcessingInput(Contract):
@@ -122,6 +133,7 @@ def detail(request: Request, recording_id: str):
             (recording_id,),
         ).fetchone()
         job = as_job(row) if row else None
+        history = processing_history(connection, recording_id)
     transcript = TranscriptRepository(db).current(recording_id)
     analysis = AnalysisRepository(db).current(recording_id)
     return RecordingDetail(
@@ -132,6 +144,7 @@ def detail(request: Request, recording_id: str):
             analysis and (transcript is None or analysis.transcript_id != transcript.id)
         ),
         job=job,
+        processing_history=history,
     )
 
 

@@ -11,8 +11,9 @@ export function SpeakerEditor({
   onRefresh: () => Promise<void>;
   onClose: () => void;
 }) {
+  const [opening] = useState(() => structuredClone(transcript));
   const [drafts, setDrafts] = useState(() =>
-    transcript.speakers.map((item) => ({ ...item })),
+    opening.speakers.map((item) => ({ ...item })),
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -24,19 +25,18 @@ export function SpeakerEditor({
         .filter(
           (item) =>
             item.role !==
-            transcript.speakers.find((original) => original.id === item.id)
-              ?.role,
+            opening.speakers.find((original) => original.id === item.id)?.role,
         )
         .map((item) => ({ speaker_id: item.id, role: item.role ?? "" }));
       if (changes.length)
         await api.edit(transcript.recording_id, {
-          base_version_id: transcript.id,
+          base_version_id: opening.id,
           changes,
         });
       for (const speaker of drafts)
         if (
           speaker.display_name !==
-          transcript.speakers.find((original) => original.id === speaker.id)
+          opening.speakers.find((original) => original.id === speaker.id)
             ?.display_name
         )
           await api.renameSpeaker(

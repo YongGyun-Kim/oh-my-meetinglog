@@ -53,6 +53,7 @@ class CloudSpeech:
             segments = data.get("segments")
             if not isinstance(segments, list):
                 raise ApiError("invalid_output", "화자 구분 전사 형식이 올바르지 않습니다", 503)
+            previous_requests = list(turns)
             for segment in segments:
                 text = str(segment.get("text", "")).strip()
                 if not text:
@@ -76,10 +77,14 @@ class CloudSpeech:
                     )
                 speaker_id = mapping.get(label) if index == 0 else label if label in names else None
                 if any(
-                    turn.text_original == text
+                    index > 0
+                    and part.offset_ms <= start < part.offset_ms + part.overlap_ms
+                    and speaker_id is not None
+                    and turn.speaker_id == speaker_id
+                    and turn.text_original == text
                     and abs(turn.start_ms - start) < 200
                     and min(turn.end_ms, end) > max(turn.start_ms, start)
-                    for turn in turns[-30:]
+                    for turn in previous_requests[-30:]
                 ):
                     continue
                 turns.append(
@@ -109,6 +114,17 @@ class CloudSpeech:
                         reference_data_url(path, start + part.offset_ms / 1000, end - start, target)
                     )
                     names.append(mapping[label])
+        turns.sort(key=lambda turn: turn.start_ms)
+        active = []
+        for turn in turns:
+            active = [other for other in active if other.end_ms > turn.start_ms]
+            for other in active:
+                if other.speaker_id != turn.speaker_id or turn.speaker_id is None:
+                    if "overlap" not in turn.review_flags:
+                        turn.review_flags.append("overlap")
+                    if "overlap" not in other.review_flags:
+                        other.review_flags.append("overlap")
+            active.append(turn)
         artifact = parts[0].path.parent / "response.json"
         atomic_json(artifact, {"responses": raw})
         return SpeechResult(

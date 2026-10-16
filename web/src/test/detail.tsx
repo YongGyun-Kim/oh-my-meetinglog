@@ -52,6 +52,7 @@ export const detailFixture: Detail = {
     },
   },
   analysis_stale: false,
+  processing_history: [],
   job: null,
 };
 

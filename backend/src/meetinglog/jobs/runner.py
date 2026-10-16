@@ -5,7 +5,7 @@ from pathlib import Path
 
 from meetinglog.config import Settings
 from meetinglog.db import ApiError, Database, require_recording
-from meetinglog.domain import Job, SpeechResult, StageRequest
+from meetinglog.domain import Job, SpeechResult, StageRequest, new_id
 from meetinglog.jobs.process import ProcessRunner
 from meetinglog.jobs.repository import JobRepository
 from meetinglog.recordings.storage import Storage, atomic_json
@@ -30,8 +30,28 @@ class Worker:
             self.lock.close()
             self.lock = None
             raise ApiError("worker_running", "이미 실행 중인 처리 워커가 있습니다", 409) from error
-        self.repository.recover()
+        # A killed worker's guard reaps its engine before releasing this lock.
+        with (self.settings.data_dir / "inference.lock").open("a") as ownership:
+            fcntl.flock(ownership, fcntl.LOCK_EX)
+            self.recover_events()
+            self.repository.recover()
         return self
+
+    def recover_events(self):
+        from meetinglog.jobs.events import stage_events
+
+        with self.db.session() as connection:
+            rows = connection.execute("SELECT id,recording_id FROM jobs").fetchall()
+        for row in rows:
+            directory = (
+                Storage(self.settings.data_dir).directory(row["recording_id"]) / "jobs" / row["id"]
+            )
+            for path in sorted(
+                directory.rglob("*.events.jsonl"), key=lambda path: path.stat().st_mtime
+            ):
+                stage = "analysis" if path.name.startswith("analysis") else "speech"
+                for key, name, metadata in stage_events(path):
+                    self.repository.event(row["id"], stage, name, metadata, key)
 
     def __exit__(self, *args):
         self.stop.set()
@@ -64,14 +84,20 @@ class Worker:
         return speech
 
     def _stage(self, job: Job, stage: str, input_path: str, duration_ms: int):
-        directory = Storage(self.settings.data_dir).directory(job.recording_id) / "jobs" / job.id
+        attempt = self.repository.raw(job.id)["attempts"]
+        directory = (
+            Storage(self.settings.data_dir).directory(job.recording_id)
+            / "jobs"
+            / job.id
+            / f"attempt-{attempt}"
+        )
         request = StageRequest(
             job_id=job.id,
             recording_id=job.recording_id,
             generation=job.generation,
             stage=stage,
             input_path=input_path,
-            output_path=str(directory / f"{stage}.json"),
+            output_path=str(directory / f"{stage}-{new_id()}.json"),
             mode=job.mode,
         )
         env = {
@@ -86,6 +112,9 @@ class Worker:
             cancelled=lambda: self.stop.is_set() or self.repository.cancelled(job.id),
             heartbeat=lambda: self.repository.heartbeat(job.id),
             env=env,
+            on_event=lambda key, name, metadata: self.repository.event(
+                job.id, stage, name, metadata, key
+            ),
         )
         seconds = duration_ms / 1000
         timeout = max(300, seconds * 0.25) if stage == "analysis" else max(180, seconds * 0.5)
@@ -105,7 +134,15 @@ class Worker:
             self.repository.event(
                 job.id, stage, "fallback", {"reason": "stage_timeout", "location": "api"}
             )
-            result = runner.run(request.model_copy(update={"mode": "api"}), timeout)
+            result = runner.run(
+                request.model_copy(
+                    update={
+                        "mode": "api",
+                        "output_path": str(directory / f"{stage}-{new_id()}.json"),
+                    }
+                ),
+                timeout,
+            )
             result.metadata["fallback_reason"] = "stage_timeout"
         if self.repository.cancelled(job.id):
             raise ApiError("job_cancelled", "작업이 취소되었습니다", 409)

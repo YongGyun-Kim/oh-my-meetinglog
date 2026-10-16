@@ -2,6 +2,7 @@ import json
 import os
 import signal
 import subprocess
+import sys
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -14,7 +15,7 @@ def terminate(child: subprocess.Popen):
     if child.poll() is None:
         try:
             os.killpg(child.pid, signal.SIGTERM)
-            child.wait(timeout=1)
+            child.wait(timeout=3)
         except subprocess.TimeoutExpired:
             try:
                 os.killpg(child.pid, signal.SIGKILL)
@@ -32,9 +33,11 @@ class ProcessRunner:
         cancelled: Callable[[], bool] = lambda: False,
         heartbeat: Callable = lambda: None,
         env: dict | None = None,
+        on_event: Callable | None = None,
     ):
         self.command, self.cancelled, self.heartbeat = command, cancelled, heartbeat
         self.env = env or {}
+        self.on_event = on_event or (lambda *args: None)
 
     def run(self, request: StageRequest, timeout_s: float) -> StageResult:
         output = Path(request.output_path)
@@ -42,6 +45,18 @@ class ProcessRunner:
         output.unlink(missing_ok=True)
         error_file = output.with_suffix(".error.json")
         error_file.unlink(missing_ok=True)
+        events_file = output.with_suffix(".events.jsonl")
+        events_file.unlink(missing_ok=True)
+        from meetinglog.jobs.events import stage_events
+
+        seen = set()
+
+        def consume_events():
+            for key, name, metadata in stage_events(events_file):
+                if key not in seen:
+                    self.on_event(key, name, metadata)
+                    seen.add(key)
+
         environment = {
             **os.environ,
             **self.env,
@@ -50,16 +65,33 @@ class ProcessRunner:
             "TOKENIZERS_PARALLELISM": "false",
         }
         started, last_heartbeat = time.monotonic(), 0.0
+        control, lifetime = os.pipe()
+        ownership_lock = Path(self.env.get("MEETINGLOG_DATA_DIR", output.parent)) / "inference.lock"
         with output.with_suffix(".log").open("ab") as log:
-            child = subprocess.Popen(
-                self.command(request),
-                start_new_session=True,
-                stdout=log,
-                stderr=log,
-                env=environment,
-            )
+            try:
+                child = subprocess.Popen(
+                    [
+                        sys.executable,
+                        "-m",
+                        "meetinglog.jobs.stage_guard",
+                        str(control),
+                        str(ownership_lock),
+                        *self.command(request),
+                    ],
+                    start_new_session=True,
+                    stdout=log,
+                    stderr=log,
+                    env=environment,
+                    pass_fds=(control,),
+                )
+            except BaseException:
+                os.close(lifetime)
+                raise
+            finally:
+                os.close(control)
             try:
                 while child.poll() is None:
+                    consume_events()
                     if self.cancelled():
                         raise ApiError("job_cancelled", "작업이 취소되었습니다", 409)
                     if time.monotonic() - started > timeout_s:
@@ -113,4 +145,6 @@ class ProcessRunner:
                     metadata=metadata,
                 )
             finally:
+                os.close(lifetime)
                 terminate(child)
+                consume_events()

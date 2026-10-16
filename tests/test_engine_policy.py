@@ -105,3 +105,23 @@ def test_only_transient_failures_are_retried_and_cancellation_interrupts_wait():
     with pytest.raises(ApiError) as error:
         retry(transient, sleep=sleeps.append, cancelled=lambda: True)
     assert error.value.code == "job_cancelled"
+
+
+def test_api_attempt_is_durable_before_call_even_when_request_fails(settings, tmp_path):
+    import json
+
+    from meetinglog.engines.policy import EnginePolicy
+
+    settings.openai_api_key = "test-only"
+    policy = EnginePolicy(settings)
+    policy.event_path = tmp_path / "events.jsonl"
+
+    def cloud():
+        assert policy.event_path.is_file()
+        event = json.loads(policy.event_path.read_text().splitlines()[-1])
+        assert event["event"] == "request_started" and event["attempt"] == 1
+        raise ApiError("upstream_401", "인증 오류", 503)
+
+    with pytest.raises(ApiError):
+        policy.execute("speech", "api", 0, lambda: None, cloud)
+    assert "request_started" in policy.event_path.read_text()

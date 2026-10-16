@@ -7,6 +7,42 @@ from meetinglog.recordings.service import as_recording
 from meetinglog.transcripts.repository import TranscriptRepository
 
 
+def processing_history(connection, recording_id: str) -> list[dict]:
+    history = []
+    for row in connection.execute(
+        "SELECT j.kind,j.mode,j.state,e.stage,e.event,e.created_at,e.metadata FROM job_events e JOIN jobs j ON j.id=e.job_id WHERE j.recording_id=? ORDER BY e.id",
+        (recording_id,),
+    ):
+        metadata = json.loads(row["metadata"])
+        allowed = {
+            key: value
+            for key, value in metadata.items()
+            if key
+            in (
+                "provider",
+                "model",
+                "location",
+                "quality",
+                "fallback_reason",
+                "reason",
+                "attempt",
+                "duplicate_cost_possible",
+            )
+        }
+        history.append(
+            {
+                "kind": row["kind"],
+                "mode": row["mode"],
+                "state": row["state"],
+                "stage": row["stage"],
+                "event": row["event"],
+                "created_at": row["created_at"],
+                "metadata": allowed,
+            }
+        )
+    return history
+
+
 class Exporter:
     def __init__(self, db: Database):
         self.db = db
@@ -41,38 +77,7 @@ class Exporter:
                 if analysis_row
                 else None
             )
-            history = []
-            for row in connection.execute(
-                "SELECT j.kind,j.mode,j.state,e.stage,e.event,e.created_at,e.metadata FROM job_events e JOIN jobs j ON j.id=e.job_id WHERE j.recording_id=? ORDER BY e.id",
-                (recording_id,),
-            ):
-                metadata = json.loads(row["metadata"])
-                allowed = {
-                    key: value
-                    for key, value in metadata.items()
-                    if key
-                    in (
-                        "provider",
-                        "model",
-                        "location",
-                        "quality",
-                        "fallback_reason",
-                        "reason",
-                        "attempt",
-                        "duplicate_cost_possible",
-                    )
-                }
-                history.append(
-                    {
-                        "kind": row["kind"],
-                        "mode": row["mode"],
-                        "state": row["state"],
-                        "stage": row["stage"],
-                        "event": row["event"],
-                        "created_at": row["created_at"],
-                        "metadata": allowed,
-                    }
-                )
+            history = processing_history(connection, recording_id)
             return {
                 "schema_version": 1,
                 "recording": as_recording(record).model_dump(mode="json"),

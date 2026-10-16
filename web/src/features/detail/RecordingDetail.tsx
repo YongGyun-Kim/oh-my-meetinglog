@@ -341,6 +341,24 @@ export function RecordingDetail({
           </p>
         )}
         <p>한국어 실대화 정확도: 미검증</p>
+        {detail.processing_history.map((entry, index) => (
+          <p key={index}>
+            {entry.stage === "speech" ? "음성 처리" : "대화 분석"} ·{" "}
+            {entry.metadata.location === "api"
+              ? "외부 API"
+              : entry.metadata.location === "local"
+                ? "로컬"
+                : (entry.metadata.provider ?? entry.event)}
+            {entry.metadata.attempt ? ` · 요청 ${entry.metadata.attempt}` : ""}
+            {entry.metadata.model ? ` · ${entry.metadata.model}` : ""}
+            {entry.metadata.fallback_reason
+              ? ` · 전환 사유: ${entry.metadata.fallback_reason}`
+              : ""}
+            {entry.metadata.duplicate_cost_possible
+              ? " · 재시도로 추가 요금이 발생할 수 있음"
+              : ""}
+          </p>
+        ))}
         {!activeJob && detail.recording.input_state === "ready" && (
           <button
             className="text-button"

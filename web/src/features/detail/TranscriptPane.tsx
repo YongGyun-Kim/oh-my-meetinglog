@@ -12,6 +12,14 @@ const flags: Record<string, string> = {
   speaker_boundary: "화자 경계 확인",
 };
 
+type Draft = {
+  text: string;
+  speaker: string;
+  base: string;
+  error: string;
+  saving: boolean;
+};
+
 function TurnRow({
   turn,
   transcript,
@@ -19,6 +27,8 @@ function TurnRow({
   onSeek,
   onRefresh,
   readOnly,
+  draftState,
+  updateDraft,
 }: {
   turn: Turn;
   transcript: Transcript;
@@ -26,13 +36,19 @@ function TurnRow({
   onSeek: (turn: Turn) => void;
   onRefresh: () => Promise<void>;
   readOnly: boolean;
+  draftState?: Draft;
+  updateDraft: (patch: Partial<Draft> | null) => void;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
-  const [speaker, setSpeaker] = useState("");
-  const [base, setBase] = useState("");
-  const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
+  const editing = draftState !== undefined;
+  const draft = draftState?.text ?? "";
+  const speaker = draftState?.speaker ?? "";
+  const base = draftState?.base ?? "";
+  const error = draftState?.error ?? "";
+  const saving = draftState?.saving ?? false;
+  const setDraft = (text: string) => updateDraft({ text });
+  const setSpeaker = (speaker: string) => updateDraft({ speaker });
+  const setError = (error: string) => updateDraft({ error });
+  const setSaving = (saving: boolean) => updateDraft({ saving });
   const name =
     transcript.speakers.find((item) => item.id === turn.speaker_id)
       ?.display_name ?? "미확인 화자";
@@ -50,7 +66,7 @@ function TurnRow({
           { turn_id: turn.id, text: draft, speaker_id: speaker || null },
         ],
       });
-      setEditing(false);
+      updateDraft(null);
       await onRefresh();
     } catch (reason) {
       setError(
@@ -88,11 +104,13 @@ function TurnRow({
             className="icon-button edit-turn"
             aria-label="발언 수정"
             onClick={() => {
-              setEditing(true);
-              setDraft(turn.text_edited ?? turn.text_original);
-              setSpeaker(turn.speaker_id ?? "");
-              setBase(transcript.id);
-              setError("");
+              updateDraft({
+                text: turn.text_edited ?? turn.text_original,
+                speaker: turn.speaker_id ?? "",
+                base: transcript.id,
+                error: "",
+                saving: false,
+              });
             }}
           >
             <Pencil size={13} />
@@ -142,7 +160,7 @@ function TurnRow({
             <button
               className="button secondary"
               disabled={saving}
-              onClick={() => setEditing(false)}
+              onClick={() => updateDraft(null)}
             >
               <X size={13} />
               취소
@@ -187,12 +205,14 @@ export function TranscriptPane({
   onRefresh: () => Promise<void>;
   readOnly?: boolean;
 }) {
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const scroll = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
     count: transcript.turns.length,
     getScrollElement: () => scroll.current,
     estimateSize: () => 126,
     overscan: 5,
+    useAnimationFrameWithResizeObserver: true,
     initialRect: { width: 600, height: 620 },
   });
   useEffect(() => {
@@ -235,6 +255,19 @@ export function TranscriptPane({
                 onSeek={onSeek}
                 onRefresh={onRefresh}
                 readOnly={readOnly}
+                draftState={
+                  readOnly ? undefined : drafts[transcript.turns[item.index].id]
+                }
+                updateDraft={(patch) => {
+                  const id = transcript.turns[item.index].id;
+                  setDrafts((previous) => {
+                    const next = { ...previous };
+                    if (patch === null) delete next[id];
+                    else if (previous[id] || patch.base)
+                      next[id] = { ...previous[id], ...patch } as Draft;
+                    return next;
+                  });
+                }}
               />
             </div>
           ))}
