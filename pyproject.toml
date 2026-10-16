@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "meetinglog"
+version = "0.1.0"
+description = "Local conversation recording, transcription and grounded notes"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "fastapi>=0.115,<0.130", "uvicorn>=0.30", "pydantic-settings>=2.6",
+  "python-multipart>=0.0.20", "httpx>=0.28", "openai>=2",
+  "numpy>=2", "soundfile>=0.13",
+]
+
+[project.optional-dependencies]
+speech = ["mlx-audio>=0.5.6", "mlx-whisper", "huggingface-hub", "torch", "pyyaml"]
+evaluation = ["jiwer", "pyannote.metrics"]
+
+[dependency-groups]
+dev = ["pytest>=8", "pytest-asyncio>=0.25", "respx>=0.22", "ruff>=0.12"]
+
+[project.scripts]
+meetinglog = "meetinglog.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["backend/src/meetinglog"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["live: requires real models or an external API"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501", "B008"]

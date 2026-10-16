@@ -1,5 +1,7 @@
 # Local Conversation Records Implementation Plan
 
+실행 결정(2026-10-16): 사용자의 ‘맥북 웹 + 로컬 서버만 먼저 진행’ 지시에 따라 현재 세션에서 직접 구현한다. 아이폰·LAN 접속은 제외한다. 후속 모델 조사를 반영해 기본 화자 구분 연결 후보를 Nemotron 3로 갱신하며, 품질은 검증 전까지 미확인으로 표시한다.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 한국어 1:1 인터뷰·상담 녹음을 로컬 우선으로 처리해 화자별 전사와 원문에 근거한 대화 기록을 제공하는 개인용 웹 서비스를 만든다.
@@ -275,7 +277,7 @@ aligner = load_stt(str(aligner_path))
 aligned = aligner.generate(audio=str(chunk_path), text=text, language='Korean')
 ```
 
-모델은 Qwen3-ASR-1.7B-8bit, Qwen3-ForcedAligner-0.6B-8bit, Silero VAD를 준비한다. Sortformer v2.1은 아래의 공식 변환 경로를 사용한다. 변환은 모델 준비 작업이며 음성 처리 중 실행하지 않는다.
+모델은 Qwen3-ASR-1.7B-8bit, Qwen3-ForcedAligner-0.6B-8bit, Silero VAD와 MLX Nemotron 3를 준비한다. 아래 Sortformer 변환 경로는 비교용 참고이며 기본 모델 준비에 포함하지 않는다. 변환은 모델 준비 작업이며 음성 처리 중 실행하지 않는다.
 
 ```bash
 uv sync --extra speech
@@ -625,7 +627,7 @@ bash scripts/dev.sh
 
 ## 실행 방법과 검토 상태
 
-이 계획은 실행 전 사용자 검토 대상이다. 현재 제품 코드·의존성 설치·모델 다운로드는 수행하지 않았다.
+이 계획은 사용자의 맥북 로컬 구현 진행 지시에 따라 직접 실행 중이다. 완료 상태는 작업 체크박스와 검증 보고서에 기록한다.
 
 - **직접 실행(추천):** 현재 세션에서 순서대로 구현하고 마지막에 전체 변경을 검토한다. 열두 작업이 같은 데이터 계약과 버전 관리에 연결되어 있어 맥락을 유지하기 쉽다.
 - **하위 에이전트 실행:** 작업별 구현·검토를 분리한다. 새 실행·검토 맥락이 반복되어 비용이 늘 수 있으며, 사용자 선택 후 해당 워크플로를 적용한다.
