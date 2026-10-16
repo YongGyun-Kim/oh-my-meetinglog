@@ -26,6 +26,7 @@ const path = (id: string) => `/recordings/${encodeURIComponent(id)}`
 export const api = {
   listRecordings: async (signal?: AbortSignal) => (await request<{ items: RecordingSummary[] }>('/recordings', { signal })).items,
   detail: (id: string, signal?: AbortSignal) => request<RecordingDetail>(path(id), { signal }),
+  snapshotTranscript: async (id: string, transcriptId: string) => (await request<{ transcript: Transcript }>(`${path(id)}/export?format=json&transcript_id=${encodeURIComponent(transcriptId)}`)).transcript,
   createDraft: (title: string) => request<Recording>('/recordings/drafts', json('POST', { title })),
   putChunk: async (id: string, sequence: number, body: Blob) => { await request(`${path(id)}/chunks/${sequence}`, { method: 'PUT', body }) },
   finalize: (id: string, lastSequence: number) => request<Recording>(`${path(id)}/finalize`, json('POST', { last_sequence: lastSequence })),
