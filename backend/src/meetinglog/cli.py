@@ -6,12 +6,36 @@ from meetinglog.config import Settings
 
 def main():
     parser = argparse.ArgumentParser(prog="meetinglog")
-    parser.add_argument("command", choices=["serve", "schema", "worker"])
+    parser.add_argument(
+        "command", choices=["serve", "schema", "worker", "prepare-models", "doctor"]
+    )
+    parser.add_argument("--models", nargs="+", default=["vad", "asr", "aligner", "diarizer"])
     args = parser.parse_args()
     if args.command == "schema":
         import json
 
         print(json.dumps(create_app().openapi(), ensure_ascii=False))
+    elif args.command == "prepare-models":
+        from meetinglog.engines.models import ModelRegistry
+
+        ModelRegistry(Settings()).prepare(args.models)
+    elif args.command == "doctor":
+        import json
+        import shutil
+
+        from meetinglog.engines.models import ModelRegistry
+
+        print(
+            json.dumps(
+                {
+                    "ffmpeg": bool(shutil.which("ffmpeg")),
+                    "ffprobe": bool(shutil.which("ffprobe")),
+                    "models": ModelRegistry(Settings()).readiness(),
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
     elif args.command == "worker":
         import signal
 
