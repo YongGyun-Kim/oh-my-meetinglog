@@ -26,3 +26,13 @@ def test_invalid_container_is_rejected(tmp_path):
     with pytest.raises(ApiError) as error:
         probe(source)
     assert error.value.code == "invalid_audio"
+
+
+def test_browser_style_webm_without_header_duration_is_accepted():
+    from pathlib import Path
+
+    from meetinglog.recordings.media import probe
+
+    # Captured with Chromium's fake microphone, not a private recording.
+    path = Path(__file__).parent / "fixtures" / "browser-fake-mic.webm"
+    assert 1000 <= probe(path).duration_ms <= 1500

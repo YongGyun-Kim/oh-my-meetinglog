@@ -1,0 +1,89 @@
+{
+  "$defs": {
+    "CorpusItem": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "audio_path": {
+          "title": "Audio Path",
+          "type": "string"
+        },
+        "reference_transcript_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reference Transcript Path"
+        },
+        "reference_rttm_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reference Rttm Path"
+        },
+        "split": {
+          "enum": [
+            "quality",
+            "performance"
+          ],
+          "title": "Split",
+          "type": "string"
+        },
+        "human_review_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Human Review Path"
+        }
+      },
+      "required": [
+        "id",
+        "audio_path",
+        "reference_transcript_path",
+        "reference_rttm_path",
+        "split",
+        "human_review_path"
+      ],
+      "title": "CorpusItem",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/CorpusItem"
+      },
+      "title": "Items",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "items"
+  ],
+  "title": "Corpus",
+  "type": "object"
+}

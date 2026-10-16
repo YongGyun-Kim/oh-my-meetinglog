@@ -45,6 +45,39 @@ def probe(path: Path) -> MediaInfo:
         audio = next(stream for stream in data["streams"] if stream["codec_type"] == "audio")
         duration = float(data.get("format", {}).get("duration", audio.get("duration", 0)))
         rate, channels = int(audio["sample_rate"]), int(audio["channels"])
+        if duration <= 0 or not math.isfinite(duration):
+            # MediaRecorder WebM is a stream: its header may omit duration.
+            # Decode to a null sink and read the final audio clock, preserving the original.
+            decoded = subprocess.run(
+                [
+                    tool("ffmpeg"),
+                    "-nostdin",
+                    "-v",
+                    "error",
+                    "-protocol_whitelist",
+                    "file,pipe",
+                    "-i",
+                    str(path),
+                    "-map",
+                    "0:a:0",
+                    "-vn",
+                    "-progress",
+                    "pipe:1",
+                    "-nostats",
+                    "-f",
+                    "null",
+                    "-",
+                ],
+                check=True,
+                capture_output=True,
+                timeout=180,
+            )
+            timestamps = [
+                int(line.split("=", 1)[1])
+                for line in decoded.stdout.decode().splitlines()
+                if line.startswith("out_time_us=") and line.split("=", 1)[1].lstrip("-").isdigit()
+            ]
+            duration = max(timestamps, default=0) / 1_000_000
         if not math.isfinite(duration) or duration <= 0 or rate <= 0 or channels <= 0:
             raise ValueError
         return MediaInfo(round(duration * 1000), rate, channels)
