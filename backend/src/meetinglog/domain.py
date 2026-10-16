@@ -137,6 +137,8 @@ class Job(Contract):
     generation: int
     mode: Mode
     created_at: datetime = Field(default_factory=now)
+    error_code: str | None = None
+    error_message: str | None = None
 
 
 class SpeechResult(Contract):

@@ -1,3 +1,4 @@
+import fcntl
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -30,16 +31,27 @@ class Database:
 
     def migrate(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.session() as connection:
-            connection.execute("PRAGMA journal_mode = WAL")
-            connection.execute(
-                "CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY)"
-            )
-            for migration in sorted((Path(__file__).parent / "migrations").glob("*.sql")):
-                if not connection.execute(
-                    "SELECT 1 FROM schema_migrations WHERE version=?", (migration.name,)
-                ).fetchone():
-                    connection.executescript(migration.read_text())
+        with self.path.with_suffix(".schema.lock").open("a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            with self.session() as connection:
+                connection.execute("PRAGMA journal_mode = WAL")
+            with self.session(immediate=True) as connection:
+                connection.execute(
+                    "CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY)"
+                )
+                for migration in sorted((Path(__file__).parent / "migrations").glob("*.sql")):
+                    if connection.execute(
+                        "SELECT 1 FROM schema_migrations WHERE version=?", (migration.name,)
+                    ).fetchone():
+                        continue
+                    statement = ""
+                    for line in migration.read_text().splitlines(keepends=True):
+                        statement += line
+                        if sqlite3.complete_statement(statement):
+                            connection.execute(statement)
+                            statement = ""
+                    if statement.strip():
+                        raise ValueError(f"Incomplete migration: {migration.name}")
                     connection.execute(
                         "INSERT INTO schema_migrations VALUES (?)", (migration.name,)
                     )

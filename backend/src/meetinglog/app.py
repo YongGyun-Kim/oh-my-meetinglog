@@ -26,6 +26,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from meetinglog.transcripts.api import router as transcript_router
 
     app.include_router(transcript_router)
+    from meetinglog.jobs.api import router as job_router
+
+    app.include_router(job_router)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins,
