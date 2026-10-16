@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-speech = ["mlx-audio>=0.5.6", "mlx-whisper", "huggingface-hub", "torch", "pyyaml"]
+speech = ["mlx-audio>=0.5.6", "mlx-whisper", "huggingface-hub", "torch", "pyyaml", "soynlp"]
 evaluation = ["jiwer", "pyannote.metrics"]
 
 [dependency-groups]
