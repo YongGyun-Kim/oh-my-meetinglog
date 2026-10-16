@@ -5,3 +5,4 @@
 현재는 설계 단계입니다. 제품 코드는 아직 구현하지 않았습니다.
 
 - [로컬 웹 MVP 설계안](docs/superpowers/specs/2026-10-16-local-conversation-records-design.md)
+- [구현 계획](docs/superpowers/plans/2026-10-16-local-conversation-records.md)
