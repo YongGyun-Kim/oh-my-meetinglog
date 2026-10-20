@@ -53,15 +53,15 @@ export function RecordingList({
         <span />
       </div>
       {loading && !records.length ? (
-        <p className="empty-message">기록을 불러오고 있습니다…</p>
+        <p className="empty-message">기록을 불러오고 있어요.</p>
       ) : !filtered.length ? (
         <div className="empty-state">
           <FileAudio size={36} strokeWidth={1.2} />
-          <h3>{query ? "검색 결과가 없습니다" : "첫 대화를 남겨보세요"}</h3>
+          <h3>{query ? "검색 결과가 없어요" : "저장된 기록이 없어요"}</h3>
           <p>
             {query
               ? "다른 제목으로 검색해 주세요."
-              : "녹음이 끝나면 화자별 전사와 대화 요약이 여기에 모입니다."}
+              : "녹음을 시작하거나 녹음 파일을 가져와 주세요."}
           </p>
           {!query && (
             <button className="button secondary" onClick={onUpload}>

@@ -7,17 +7,17 @@ const modes: { mode: Mode; title: string; text: string }[] = [
   {
     mode: "local_only",
     title: "로컬 전용",
-    text: "이 Mac에서만 전사와 대화 분석을 처리합니다.",
+    text: "전사와 대화 분석을 이 Mac에서만 처리해요.",
   },
   {
     mode: "auto",
     title: "자동 선택",
-    text: "로컬 처리를 우선합니다. 실패하거나 평가 기준에 미달한 경우 구성된 외부 API로 전환합니다.",
+    text: "이 Mac에서 먼저 처리해요. 처리에 실패하거나 품질 평가에서 미달로 확인되면 설정한 외부 API로 전환해요.",
   },
   {
     mode: "api",
     title: "외부 API",
-    text: "전사와 분석에 외부 API를 사용합니다. 음성·텍스트가 외부로 전송됩니다.",
+    text: "전사와 분석에 외부 API를 사용해요. 음성과 텍스트가 외부로 전송돼요.",
   },
 ];
 export function SettingsPage() {
@@ -50,9 +50,9 @@ export function SettingsPage() {
     <div className="page settings-page">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">WORKSPACE SETTINGS</span>
+          <span className="eyebrow">녹음 처리</span>
           <h1>처리 설정</h1>
-          <p>새로 처리하는 대화에 적용됩니다.</p>
+          <p>새로 처리하는 대화에 적용돼요.</p>
         </div>
         <button
           className="button secondary"
@@ -101,15 +101,15 @@ export function SettingsPage() {
             </div>
             <p className="help left">
               {settings.api_configured
-                ? "외부 API 키가 서버에 구성되어 있습니다. 실제 호출 가능 여부는 아직 확인하지 않았습니다."
-                : "외부 API가 구성되지 않았습니다. 자동 선택도 로컬에서만 처리합니다."}
+                ? "외부 API 키가 서버에 설정돼 있어요. 실제로 연결되는지는 아직 확인하지 않았어요."
+                : "외부 API가 설정되지 않았어요. 자동 선택도 이 Mac에서만 처리해요."}
             </p>
           </section>
           <section className="settings-section">
             <h2>로컬 엔진 준비 상태</h2>
             <p className="muted settings-description">
-              모델 준비와 정확도 검증은 별도입니다. 실제 한국어 대화 평가 전까지
-              정확도는 미검증으로 표시합니다.
+              모델이 준비돼 있어도 정확도를 검증한 것은 아니에요. 실제 한국어
+              대화로 평가하기 전까지 정확도 미검증으로 표시해요.
             </p>
             <div className="engine-list">
               {settings.engines.map((engine) => (
@@ -147,7 +147,7 @@ export function SettingsPage() {
             <p className="help left">
               {settings.media_tools_ready
                 ? "FFmpeg · FFprobe 준비됨"
-                : "음성 파일 처리를 위해 FFmpeg 설치가 필요합니다."}
+                : "음성 파일을 처리하려면 FFmpeg를 설치해 주세요."}
             </p>
           </section>
           <section className="settings-section">
@@ -161,13 +161,13 @@ export function SettingsPage() {
             </p>
             <p>
               외부 API는 프로젝트의 <code>.env</code>에{" "}
-              <code>OPENAI_API_KEY</code>를 설정하고 서버와 작업자를 다시
-              실행하세요. 키는 브라우저에 저장하지 않습니다.
+              <code>OPENAI_API_KEY</code>를 설정하고 서버와 작업자를 다시 실행해
+              주세요. 키는 브라우저에 저장하지 않아요.
             </p>
           </section>
         </>
       ) : (
-        !error && <p className="empty-message">설정을 확인하고 있습니다…</p>
+        !error && <p className="empty-message">설정을 확인하고 있어요.</p>
       )}
     </div>
   );

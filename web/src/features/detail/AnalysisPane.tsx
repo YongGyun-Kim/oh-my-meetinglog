@@ -134,7 +134,7 @@ export function AnalysisPane({
         </section>
       )}
       <p className="analysis-footnote">
-        AI가 정리한 내용입니다. 근거 발언과 원본 음성으로 확인해 주세요.
+        AI가 분석한 내용이에요. 근거 발언과 원본 음성으로 확인해 주세요.
       </p>
     </div>
   );

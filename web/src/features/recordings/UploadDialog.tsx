@@ -17,11 +17,11 @@ export function UploadDialog({
     if (!file || busy.current) return;
     setError("");
     if (file.size > 1_000_000_000) {
-      setError("파일은 1GB 이하로 가져올 수 있습니다.");
+      setError("1GB 이하의 파일을 선택해 주세요.");
       return;
     }
     if (!file.size) {
-      setError("비어 있는 파일입니다. 다른 녹음 파일을 선택해 주세요.");
+      setError("파일이 비어 있어요. 다른 녹음 파일을 선택해 주세요.");
       return;
     }
     busy.current = true;
@@ -47,7 +47,7 @@ export function UploadDialog({
       >
         <div className="modal-heading">
           <div>
-            <span className="eyebrow">IMPORT AUDIO</span>
+            <span className="eyebrow">파일 입력</span>
             <h2 id="upload-title">녹음 파일 가져오기</h2>
           </div>
           <button
@@ -95,7 +95,7 @@ export function UploadDialog({
             <progress max="1" value={progress} aria-label="파일 전송 진행" />
             <p>
               {progress === 1
-                ? "파일을 확인하고 있습니다…"
+                ? "파일을 확인하고 있어요."
                 : `전송 중 ${Math.round(progress * 100)}%`}
             </p>
           </div>
@@ -106,7 +106,7 @@ export function UploadDialog({
           </p>
         )}
         <p className="help">
-          원본 파일을 보관하고, 전사와 대화 정리를 순서대로 진행합니다.
+          원본 파일은 보관하고, 음성을 글로 바꾼 뒤 내용을 분석해요.
         </p>
       </section>
     </div>

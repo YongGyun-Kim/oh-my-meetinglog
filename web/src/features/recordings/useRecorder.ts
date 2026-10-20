@@ -78,7 +78,7 @@ export function useRecorder(onSaved: (id: string) => void) {
         typeof MediaRecorder === "undefined"
       )
         throw new Error(
-          "이 브라우저에서 마이크 녹음을 사용할 수 없습니다. Chrome에서 열거나 녹음 파일을 가져와 주세요.",
+          "이 브라우저에서는 마이크로 녹음할 수 없어요. Chrome에서 열거나 녹음 파일을 가져와 주세요.",
         );
       const mimeType = [
         "audio/webm;codecs=opus",
@@ -88,7 +88,7 @@ export function useRecorder(onSaved: (id: string) => void) {
       ].find((type) => MediaRecorder.isTypeSupported(type));
       if (!mimeType)
         throw new Error(
-          "지원하는 녹음 형식이 없습니다. 녹음 파일을 가져와 주세요.",
+          "지원하는 녹음 형식이 없어요. 녹음 파일을 가져와 주세요.",
         );
       const media = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -120,7 +120,7 @@ export function useRecorder(onSaved: (id: string) => void) {
         if (pendingBytes > 32 * 1024 * 1024) {
           fail(
             new Error(
-              "녹음 저장이 지연되어 중지했습니다. 서버 연결을 확인한 뒤 다시 녹음해 주세요.",
+              "저장이 지연돼 녹음을 멈췄어요. 서버 연결을 확인한 뒤 다시 녹음해 주세요.",
             ),
           );
           return;
@@ -141,9 +141,7 @@ export function useRecorder(onSaved: (id: string) => void) {
       });
       capture.addEventListener("error", () =>
         fail(
-          new Error(
-            "마이크 녹음이 중단되었습니다. 마이크 연결과 권한을 확인해 주세요.",
-          ),
+          new Error("녹음이 중단됐어요. 마이크 연결과 권한을 확인해 주세요."),
         ),
       );
       capture.addEventListener("stop", async () => {
@@ -153,7 +151,7 @@ export function useRecorder(onSaved: (id: string) => void) {
         if (!sequence) {
           fail(
             new Error(
-              "저장된 음성이 없습니다. 마이크를 확인한 뒤 다시 녹음해 주세요.",
+              "저장된 음성이 없어요. 마이크를 확인한 뒤 다시 녹음해 주세요.",
             ),
           );
           return;
@@ -210,7 +208,7 @@ export function useRecorder(onSaved: (id: string) => void) {
       fail(
         reason instanceof DOMException && reason.name === "NotAllowedError"
           ? new Error(
-              "마이크 권한이 필요합니다. 주소창의 사이트 권한에서 마이크를 허용해 주세요.",
+              "마이크 권한이 필요해요. 주소창의 사이트 권한에서 마이크를 허용해 주세요.",
             )
           : reason,
       );

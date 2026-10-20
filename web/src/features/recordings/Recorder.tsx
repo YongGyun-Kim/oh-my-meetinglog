@@ -32,12 +32,12 @@ export function Recorder({
             ? "대화를 녹음하고 있어요"
             : capture.state === "saving"
               ? "마지막 음성을 저장하고 있어요"
-              : "지금의 대화를 기록하세요"}
+              : "마이크로 녹음하기"}
         </h2>
         <p>
           {active
-            ? "녹음이 끝날 때까지 이 창을 열어 두세요."
-            : "마이크로 녹음하거나, 가지고 있는 녹음 파일을 가져오세요."}
+            ? "녹음과 저장이 끝날 때까지 이 창을 열어 두세요."
+            : "녹음 시작을 누르면 마이크로 녹음할 수 있어요."}
         </p>
         {capture.state === "recording" && (
           <div className="live-meter">
@@ -51,7 +51,7 @@ export function Recorder({
         )}
         {capture.elapsedMs >= 7_140_000 && (
           <p className="warning">
-            2시간 제한까지 1분 남았습니다. 곧 녹음을 자동 종료합니다.
+            1분 뒤 2시간 제한에 도달하면 녹음이 자동으로 끝나요.
           </p>
         )}
         {capture.error && (

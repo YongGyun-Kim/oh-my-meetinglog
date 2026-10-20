@@ -78,7 +78,7 @@ export default function App() {
           </span>
           대화록<span className="brand-dot">.</span>
         </button>
-        <span className="workspace-label">PERSONAL WORKSPACE</span>
+        <span className="workspace-label">내 기록</span>
         <nav>
           <button
             disabled={recording}
@@ -101,17 +101,13 @@ export default function App() {
           <div className="local-label">
             <span />이 Mac에 보관
           </div>
-          <p>
-            대화의 맥락까지,
-            <br />
-            차분히 기록하는 공간.
-          </p>
+          <p>녹음·전사·대화 분석</p>
         </div>
       </aside>
       <main className="main">
         <header className="topbar">
           <span>
-            내 워크스페이스 <span className="slash">/</span>{" "}
+            내 기록 <span className="slash">/</span>{" "}
             {settings ? "처리 설정" : selected ? "대화 기록" : "모든 기록"}
           </span>
           <button
@@ -119,7 +115,7 @@ export default function App() {
             disabled={recording}
             onClick={() => navigate("#settings")}
           >
-            MAC · LOCAL
+            저장 위치 · 이 Mac
           </button>
         </header>
         {settings ? (
@@ -138,9 +134,9 @@ export default function App() {
           <div className="page">
             <div className="page-heading">
               <div>
-                <span className="eyebrow">CONVERSATION ARCHIVE</span>
-                <h1>대화의 다음 페이지</h1>
-                <p>흘러간 대화를 다시 찾을 수 있는 기록으로.</p>
+                <span className="eyebrow">녹음과 전사</span>
+                <h1>대화 기록</h1>
+                <p>녹음한 내용을 확인하고 수정할 수 있어요.</p>
               </div>
               <button
                 className="button secondary"
@@ -165,7 +161,7 @@ export default function App() {
               />
             </div>
             <footer className="page-footer">
-              <span>원본 음성에서 시작하는 대화 기록</span>
+              <span>발언 시각을 누르면 원본 음성을 들을 수 있어요.</span>
               <button
                 className="text-button"
                 disabled={recording}

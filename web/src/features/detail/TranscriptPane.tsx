@@ -71,7 +71,7 @@ function TurnRow({
     } catch (reason) {
       setError(
         reason instanceof ApiError && reason.status === 409
-          ? "최신 전사가 변경되었습니다. 작성한 내용은 유지됩니다. 최신 전사를 불러온 뒤 다시 편집해 주세요."
+          ? "최신 전사가 바뀌었어요. 작성한 내용은 유지돼요. 최신 전사를 불러온 뒤 다시 편집해 주세요."
           : message(reason),
       );
     } finally {
@@ -225,7 +225,7 @@ export function TranscriptPane({
   return (
     <div className="transcript-scroll" ref={scroll}>
       {!transcript.turns.length ? (
-        <p className="empty-message">인식된 음성이 없습니다.</p>
+        <p className="empty-message">인식된 음성이 없어요.</p>
       ) : (
         <div
           style={{ height: virtualizer.getTotalSize(), position: "relative" }}

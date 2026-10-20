@@ -30,7 +30,7 @@ export const AudioPlayer = forwardRef<Player, { id: string }>(
         />
         {error && (
           <span className="audio-error">
-            재생용 음성을 준비 중이거나 파일을 읽을 수 없습니다.
+            재생용 음성을 준비 중이거나 파일을 읽을 수 없어요.
           </span>
         )}
       </div>

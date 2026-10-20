@@ -89,7 +89,7 @@ export function RecordingDetail({
             {error}
           </p>
         ) : (
-          <p className="empty-message">대화를 불러오고 있습니다…</p>
+          <p className="empty-message">대화 기록을 불러오고 있어요.</p>
         )}
       </div>
     );
@@ -102,8 +102,8 @@ export function RecordingDetail({
     ["running", "queued", "interrupted"].includes(detail.job.state);
   const stage =
     detail.job?.stage === "analysis"
-      ? "대화 내용을 정리하고 있습니다"
-      : "음성을 전사하고 화자를 구분하고 있습니다";
+      ? "대화 내용을 분석하고 있어요"
+      : "음성을 글로 바꾸고 화자를 구분하고 있어요";
   const exportQuery = detail.transcript
     ? `&transcript_id=${encodeURIComponent(detail.transcript.id)}`
     : "";
@@ -161,10 +161,12 @@ export function RecordingDetail({
           <span className="processing-dot" />
           <div>
             <strong>
-              {detail.job?.state === "queued" ? "처리 대기 중입니다" : stage}
+              {detail.job?.state === "queued"
+                ? "처리를 기다리고 있어요"
+                : stage}
             </strong>
             <span>
-              서버와 로컬 작업자를 실행해 두면 이 화면을 닫아도 계속 처리합니다.
+              서버와 워커가 실행 중이면 이 화면을 닫아도 처리가 계속돼요.
             </span>
           </div>
           <button
@@ -181,9 +183,9 @@ export function RecordingDetail({
       )}
       {detail.job?.state === "failed" && (
         <div className="error" role="alert">
-          {detail.job.error_message ?? "처리에 실패했습니다."}
+          {detail.job.error_message ?? "처리하지 못했어요."}
           {detail.transcript
-            ? " 전사와 원본 음성은 계속 확인할 수 있습니다."
+            ? " 전사와 원본 음성은 계속 확인할 수 있어요."
             : ""}
         </div>
       )}
@@ -194,8 +196,8 @@ export function RecordingDetail({
       )}
       {detail.analysis_stale && (
         <div className="notice">
-          수정 전 전사를 바탕으로 만든 분석입니다. 근거를 누르면 당시의 전사를
-          표시합니다.
+          수정 전 전사를 바탕으로 만든 분석이에요. 근거를 누르면 당시의 전사를
+          볼 수 있어요.
           <button
             disabled={busy || !!activeJob || !detail.transcript}
             onClick={() => {
@@ -257,8 +259,8 @@ export function RecordingDetail({
           ) : (
             <div className="result-empty">
               <FileText size={28} />
-              <h3>전사를 준비하고 있습니다</h3>
-              <p>처리가 끝나면 화자별 발언을 확인할 수 있습니다.</p>
+              <h3>아직 전사가 없어요</h3>
+              <p>전사가 끝나면 누가 언제 말했는지 확인할 수 있어요.</p>
               {!activeJob && detail.recording.input_state === "ready" && (
                 <button
                   className="button secondary"
@@ -311,13 +313,13 @@ export function RecordingDetail({
               <Sparkles size={28} />
               <h3>
                 {detail.job?.stage === "no_speech"
-                  ? "인식된 대화가 없습니다"
-                  : "대화의 맥락을 정리합니다"}
+                  ? "인식된 음성이 없어요"
+                  : "아직 분석 결과가 없어요"}
               </h3>
               <p>
                 {detail.job?.stage === "no_speech"
                   ? "음성이 있는 파일인지 확인해 주세요."
-                  : "전사를 바탕으로 주제, 질문과 답변, 합의한 내용을 정리합니다."}
+                  : "분석이 끝나면 주제, 질문과 답변, 합의한 내용을 확인할 수 있어요."}
               </p>
             </div>
           )}
@@ -388,8 +390,8 @@ export function RecordingDetail({
           >
             <h2 id="delete-title">이 기록을 삭제할까요?</h2>
             <p className="delete-description">
-              원본 음성, 전사와 분석을 이 Mac에서 삭제합니다. 진행 중인 처리는
-              중지됩니다.
+              원본 음성, 전사와 분석을 이 Mac에서 삭제해요. 진행 중인 처리도
+              중지돼요.
             </p>
             <div className="editor-actions">
               <button

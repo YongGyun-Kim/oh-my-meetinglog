@@ -23,8 +23,7 @@ function failure(body: unknown, status: number): ApiError {
   const error = (body as { error?: { message?: string; code?: string } })
     ?.error;
   return new ApiError(
-    error?.message ??
-      "서버에 연결하지 못했습니다. 서버 실행 상태를 확인해 주세요.",
+    error?.message ?? "요청을 처리하지 못했어요. 다시 시도해 주세요.",
     status,
     error?.code,
   );
@@ -38,7 +37,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     if (error instanceof DOMException && error.name === "AbortError")
       throw error;
     throw new ApiError(
-      "로컬 서버에 연결하지 못했습니다. 서버 실행 상태를 확인해 주세요.",
+      "로컬 서버에 연결하지 못했어요. 서버가 실행 중인지 확인해 주세요.",
     );
   }
   const body = await response.json().catch(() => null);
@@ -87,7 +86,7 @@ export const api = {
       xhr.onerror = () =>
         reject(
           new ApiError(
-            "파일을 전송하지 못했습니다. 로컬 서버 연결을 확인해 주세요.",
+            "파일을 전송하지 못했어요. 로컬 서버 연결을 확인해 주세요.",
           ),
         );
       xhr.onload = () => {
@@ -132,7 +131,7 @@ export const api = {
 export const message = (error: unknown) =>
   error instanceof Error
     ? error.message
-    : "처리하지 못했습니다. 다시 시도해 주세요.";
+    : "처리하지 못했어요. 다시 시도해 주세요.";
 export const clock = (ms: number) => {
   const seconds = Math.floor(Math.max(0, ms) / 1000);
   return `${Math.floor(seconds / 60)
