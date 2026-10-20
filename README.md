@@ -4,7 +4,7 @@
 
 목표는 **Plaud 없이도 양질의 전사를 얻고, 그 전사를 에이전트에 연결해 후속 작업을 자동화하는 것**이다. 회의록 작성에서 견적서 작성과 PoC 제품 개발까지 이어지는 흐름을 지향한다.
 
-현재는 녹음·파일 입력, 화자별 전사, 원문 수정과 재분석, 근거 확인, Markdown·JSON 내보내기를 구현한 단계다. 실제 한국어 대화의 전사 품질과 장시간 처리 성능은 아직 평가하지 않았다. 에이전트 연동은 후속 목표다.
+현재는 녹음·파일 입력, 화자별 전사, 원문 수정과 재분석, 근거 확인, Markdown·JSON 내보내기를 구현한 단계다. 공개 한국어 인터뷰 한 건으로 실제 로컬 전사·분석과 화면 동작을 확인했다. 전사·화자 구분의 정량적 품질과 장시간 처리 성능은 아직 평가하지 않았다. 에이전트 연동은 후속 목표다.
 
 [개발 배경](#왜-만들었나) · [실행 화면](#실행-화면) · [벤치마크](#무엇을-벤치마크했나) · [설계 선택](#어떤-선택을-했나) · [실행 방법](#실행-방법) · [다음 목표](#다음-목표) · [학습 문서](docs/learning/README.md)
 
@@ -25,34 +25,38 @@ Plaud가 녹음을 어떻게 처리하는지, 왜 그런 구조를 선택했는�
 
 ## 실행 화면
 
-### 실제 로컬 모델 실행 결과
+### 한국어 인터뷰의 실제 로컬 전사·분석
 
-아래는 2026-10-16에 한국어 합성 음성 7.38초를 실제 로컬 모델로 처리한 화면이다. Qwen3-ASR, ForcedAligner, Silero VAD, Nemotron 3와 Ollama를 연결해 결과를 확인했다. 실제 사람의 인터뷰나 상담 녹음은 사용하지 않았다.
+2026-10-20에 **FC서울 신인 심원성 & 이태석 첫 인터뷰**의 전체 음성을 실제 로컬 모델로 처리했다. 원본 영상은 약 3분 55초다. Qwen3-ASR, ForcedAligner, Silero VAD, Nemotron 3와 Ollama `gpt-oss:20b`를 사용했으며 고정 결과를 반환하는 시험 엔진이나 외부 API는 사용하지 않았다.
 
-![한국어 합성 음성을 로컬 모델로 처리한 전사와 분석 화면](docs/verification/assets/local-result.png)
+[![공개 한국어 인터뷰에서 생성한 27개 발언과 분석 화면. 클릭하면 데모 영상을 연다.](docs/verification/assets/fcseoul-detail.png)](docs/verification/assets/fcseoul-flow.webm)
 
-이 화면은 처리 경로가 동작했다는 기록이다. 실제 대화의 정확도나 장시간 성능을 입증하는 결과는 아니다. 환경과 측정 범위는 [로컬 MVP 실행 확인](docs/verification/2026-10-16-local-mvp.md)에 기록했다.
+[데모 영상 열기 또는 다운로드하기 · WebM · 12.08초](docs/verification/assets/fcseoul-flow.webm)
 
-### 브라우저 기능 검증 영상
+기록 목록 → 전사·분석 결과 → 근거 발언의 음성 시각으로 이동 → JSON 내보내기 → 목록 복귀 순서다. **영상은 처리가 끝난 뒤 촬영한 무음 화면 녹화이며, 모델 처리 대기 시간은 포함하지 않는다.** 이번 한 번의 처리에는 작업 생성부터 완료까지 약 4분 19초가 걸렸다. 다른 기기나 긴 파일의 성능을 예측하는 값은 아니다.
 
-[![두 화자 전사와 근거가 표시된 기능 검증 화면. 클릭하면 WebM 영상을 연다.](docs/verification/assets/browser-detail.png)](docs/verification/assets/browser-flow.webm)
+결과는 **27개 발언·익명 화자 2개·주제 5개**다. `FC서울` 등 고유명사 오인식과 화자 미확인 구간 1개가 남아 있다. 전사·분석을 수동으로 고치지 않은 실제 출력이며, 정확도 검증이 끝났다는 뜻이 아니다. [실행 환경·오류·검증 범위](docs/verification/2026-10-20-korean-interview-demo.md)를 함께 기록했다.
 
-[기능 검증 영상 열기 또는 다운로드하기 · WebM](docs/verification/assets/browser-flow.webm)
-
-2026-10-19에 실제 웹·API·워커·SQLite를 연결해 촬영했다. **입력은 6초 무음 WAV이며, 전사·분석 모델은 테스트용 고정 결과를 반환한다.** 모델 정확도와 분리해 화면과 기능의 연결을 확인하는 영상이다.
-
-파일 가져오기 → 화자 이름 수정 → 전사 수정 → 이전 분석 표시 → 다시 분석 → 근거 시각 이동 → JSON 내보내기 → 기록 목록 확인 순서로 진행한다. [촬영 환경과 확인 항목](docs/verification/2026-10-19-readme-demo.md)을 별도로 남겼다.
+원본: **FC SEOUL**, [FC서울 신인 심원성 & 이태석 첫 인터뷰](https://www.youtube.com/watch?v=GnxVJrvGhRE), [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). [Commons의 파일·라이선스 기록](https://commons.wikimedia.org/wiki/File:FC서울_신인_심원성_%26_이태석_첫_인터뷰.webm)을 근거로 사용했다. 변경 내용은 전체 영상에서 음성 추출·FLAC 변환·자동 전사·분석·앱 화면 촬영이다. 제작자나 출연자의 서비스 보증을 의미하지 않는다.
 
 <details>
-<summary>기록 목록과 전사 수정 후 화면</summary>
+<summary>기록 목록과 근거 시각 이동 화면</summary>
 
 저장한 기록 목록:
 
-![기능 검증 파일이 저장된 기록 목록](docs/verification/assets/browser-library.png)
+![한국어 인터뷰 처리가 완료된 기록 목록](docs/verification/assets/fcseoul-library.png)
 
-전사를 수정하면 기존 분석이 수정 전 전사를 기준으로 했다는 안내가 나타난다:
+분석의 근거를 누르면 해당 발언을 선택하고 음성 재생 위치를 이동한다:
 
-![전사 수정 후 이전 분석임을 표시하는 화면](docs/verification/assets/browser-edited.png)
+![첫 발언을 선택하고 원본 음성의 6.168초로 이동한 화면](docs/verification/assets/fcseoul-evidence.png)
+
+</details>
+
+<details>
+<summary>이전 실행·기능 검증 기록</summary>
+
+- [2026-10-16 로컬 MVP](docs/verification/2026-10-16-local-mvp.md): 한국어 합성 음성 7.38초를 실제 모델로 처리했다. [당시 화면](docs/verification/assets/local-result.png)
+- [2026-10-19 브라우저 기능 검증](docs/verification/2026-10-19-readme-demo.md): 6초 무음과 고정 결과를 반환하는 시험 엔진으로 수정·재분석·내보내기를 확인했다. [당시 영상](docs/verification/assets/browser-flow.webm)
 
 </details>
 
@@ -214,6 +218,7 @@ Ctrl+C로 스크립트가 시작한 프로세스를 종료한다. 별도로 실�
 | --------------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------- |
 | 실제 로컬 모델 · 2026-10-16 | 짧은 한국어 합성 음성을 입력해 전사·화자 구분·Ollama 분석까지 실행     | 실제 대화의 정확도·장시간 속도·통합 최대 메모리는 미측정 |
 | 브라우저 기능 · 2026-10-19  | 테스트 엔진으로 파일 입력, 수정, 재분석, 근거 시각 이동, 내보내기 확인 | 실제 음성 인식 품질을 측정하지 않음                      |
+| 한국어 인터뷰 · 2026-10-20  | 실제 모델로 약 3분 55초의 공개 인터뷰 전사·분석·화면 촬영 완료         | 고유명사 오인식·화자 미확인 구간이 있으며 CER·DER 미측정 |
 | 외부 API                    | 요청 형식·분할·재시도 등을 모의 경계에서 검사                          | 유효한 키를 사용한 실제 연결·품질·요금은 미확인          |
 | 모바일·장시간 녹음          | 화면 크기별 레이아웃과 입력 상한 구현                                  | 아이폰·Safari·잠금 중 녹음·60분 연속 대화는 미검증       |
 
@@ -237,7 +242,7 @@ uv run --no-sync meetinglog schema > web/src/lib/schema.json
 web/node_modules/.bin/openapi-typescript web/src/lib/schema.json -o web/src/lib/schema.d.ts
 ```
 
-실제 음성 평가는 정답 전사와 화자 시각이 있는 자료가 필요하다. [평가 방법](evaluation/README.md), [기존 로컬 실행 기록](docs/verification/2026-10-16-local-mvp.md), [README 데모 검증 기록](docs/verification/2026-10-19-readme-demo.md)을 참고한다.
+실제 음성 평가는 정답 전사와 화자 시각이 있는 자료가 필요하다. [평가 방법](evaluation/README.md), [한국어 인터뷰 실행 기록](docs/verification/2026-10-20-korean-interview-demo.md), [기존 로컬 실행 기록](docs/verification/2026-10-16-local-mvp.md), [브라우저 기능 검증 기록](docs/verification/2026-10-19-readme-demo.md)을 참고한다.
 
 ## 다음 목표
 
