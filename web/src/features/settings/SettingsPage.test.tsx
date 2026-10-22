@@ -19,6 +19,7 @@ it("saves an explicit mode and reports unverified engines honestly", async () =>
     ],
   };
   vi.spyOn(api, "settings").mockResolvedValue(settings);
+  vi.spyOn(api, "cliConnections").mockResolvedValue([]);
   const update = vi
     .spyOn(api, "updateMode")
     .mockResolvedValue({ ...settings, mode: "auto" });

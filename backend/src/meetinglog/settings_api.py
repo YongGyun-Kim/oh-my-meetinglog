@@ -4,6 +4,7 @@ import shutil
 import httpx
 from fastapi import APIRouter, Request
 
+from meetinglog.cli_auth import CliConnection, CliProvider
 from meetinglog.config import Settings
 from meetinglog.db import ApiError, Database
 from meetinglog.domain import Contract, Mode
@@ -30,6 +31,10 @@ class Readiness(Contract):
 
 class ModeInput(Contract):
     mode: Mode
+
+
+class CliLoginInput(Contract):
+    pass
 
 
 def effective_mode(db: Database, settings: Settings) -> Mode:
@@ -87,3 +92,22 @@ def update(request: Request, body: ModeInput):
             (json.dumps(body.mode),),
         )
     return readiness(request.app.state.db, request.app.state.settings)
+
+
+@router.get("/cli-connections", response_model=list[CliConnection])
+def cli_connections(request: Request):
+    return request.app.state.cli_auth.connections()
+
+
+@router.post("/cli-connections/{provider}/login", response_model=CliConnection)
+def cli_login(provider: CliProvider, body: CliLoginInput, request: Request):
+    if request.headers.get("origin") not in request.app.state.settings.allowed_origins:
+        raise ApiError("invalid_origin", "설정 화면에서 로그인을 시작해 주세요.", status=403)
+    return request.app.state.cli_auth.start(provider)
+
+
+@router.post("/cli-connections/{provider}/cancel", response_model=CliConnection)
+def cancel_cli_login(provider: CliProvider, body: CliLoginInput, request: Request):
+    if request.headers.get("origin") not in request.app.state.settings.allowed_origins:
+        raise ApiError("invalid_origin", "설정 화면에서 로그인을 취소해 주세요.", status=403)
+    return request.app.state.cli_auth.cancel(provider)

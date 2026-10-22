@@ -5,6 +5,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from meetinglog.cli_auth import CliAuth
 from meetinglog.config import Settings
 from meetinglog.db import ApiError, Database
 
@@ -12,14 +13,19 @@ from meetinglog.db import ApiError, Database
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings()
     db = Database(settings.database_path)
+    cli_auth = CliAuth()
 
     @asynccontextmanager
     async def lifespan(app):
         db.migrate()
-        yield
+        try:
+            yield
+        finally:
+            cli_auth.close()
 
     app = FastAPI(title="Meetinglog", version="0.1.0", lifespan=lifespan)
     app.state.settings, app.state.db = settings, db
+    app.state.cli_auth = cli_auth
     from meetinglog.recordings.api import router as input_router
 
     app.include_router(input_router)

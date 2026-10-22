@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, Circle, RefreshCw } from "lucide-react";
 import { api, message } from "../../lib/api";
 import type { Mode, Readiness } from "../../lib/types";
+import { CliConnections } from "./CliConnections";
 
 const modes: { mode: Mode; title: string; text: string }[] = [
   {
@@ -24,7 +25,9 @@ export function SettingsPage() {
   const [settings, setSettings] = useState<Readiness | null>(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [refreshCount, setRefreshCount] = useState(0);
   const refresh = async () => {
+    setRefreshCount((value) => value + 1);
     try {
       setSettings(await api.settings());
       setError("");
@@ -69,6 +72,7 @@ export function SettingsPage() {
           {error}
         </p>
       )}
+      <CliConnections refreshCount={refreshCount} />
       {settings ? (
         <>
           <section className="settings-section">

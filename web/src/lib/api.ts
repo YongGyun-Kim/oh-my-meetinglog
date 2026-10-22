@@ -1,6 +1,8 @@
 import type {
   EditRequest,
   AnalysisForm,
+  CliConnection,
+  CliProvider,
   FormOption,
   Job,
   Mode,
@@ -108,6 +110,18 @@ export const api = {
     }),
   forms: () => request<FormOption[]>("/recordings/analysis-forms"),
   settings: () => request<Readiness>("/settings"),
+  cliConnections: (signal?: AbortSignal) =>
+    request<CliConnection[]>("/settings/cli-connections", { signal }),
+  loginCli: (provider: CliProvider) =>
+    request<CliConnection>(
+      `/settings/cli-connections/${provider}/login`,
+      json("POST", {}),
+    ),
+  cancelCliLogin: (provider: CliProvider) =>
+    request<CliConnection>(
+      `/settings/cli-connections/${provider}/cancel`,
+      json("POST", {}),
+    ),
   updateMode: (mode: Mode) =>
     request<Readiness>("/settings", json("PATCH", { mode })),
   process: (id: string, mode: Mode) =>

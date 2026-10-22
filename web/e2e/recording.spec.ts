@@ -1,6 +1,75 @@
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 
+test("connects CLI accounts from settings on desktop and mobile", async ({
+  page,
+}) => {
+  let loggingIn = false;
+  let polls = 0;
+  await page.route("**/api/settings/cli-connections**", async (route) => {
+    const codex = {
+      provider: "codex",
+      state: "connected",
+      auth_method: "account",
+      message: null,
+    };
+    const claude = {
+      provider: "claude",
+      state: "logged_out",
+      auth_method: null,
+      message: null,
+    };
+    if (route.request().method() === "POST") {
+      expect(route.request().url()).toMatch(/\/claude\/login$/);
+      expect(route.request().postDataJSON()).toEqual({});
+      loggingIn = true;
+      await route.fulfill({ json: { ...claude, state: "logging_in" } });
+    } else {
+      await route.fulfill({
+        json: [
+          codex,
+          loggingIn
+            ? { ...claude, state: ++polls > 1 ? "connected" : "logging_in" }
+            : claude,
+        ],
+      });
+    }
+  });
+  await page.goto("/#settings");
+  await expect(
+    page.getByRole("heading", { name: "정리 도구 로그인" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Codex 로그인", exact: true }),
+  ).toBeDisabled();
+  await page
+    .getByRole("button", { name: "Claude Code 로그인", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Claude Code 로그인 취소", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("group", { name: "Claude Code" }).getByRole("status"),
+  ).toHaveText("로그인됨");
+  await page.screenshot({
+    path: "test-results/cli-login-desktop.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(
+    page.getByRole("button", { name: "Claude Code 로그인", exact: true }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: "test-results/cli-login-mobile.png",
+    fullPage: true,
+  });
+});
+
 function wav() {
   const length = 16000 * 6 * 2;
   const buffer = Buffer.alloc(44 + length);

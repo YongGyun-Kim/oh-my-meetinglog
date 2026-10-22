@@ -262,6 +262,57 @@ export interface paths {
     patch: operations["update_api_settings_patch"];
     trace?: never;
   };
+  "/api/settings/cli-connections": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Cli Connections */
+    get: operations["cli_connections_api_settings_cli_connections_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/settings/cli-connections/{provider}/login": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Cli Login */
+    post: operations["cli_login_api_settings_cli_connections__provider__login_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/settings/cli-connections/{provider}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Cancel Cli Login */
+    post: operations["cancel_cli_login_api_settings_cli_connections__provider__cancel_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/health": {
     parameters: {
       query?: never;
@@ -353,6 +404,26 @@ export interface components {
       /** File */
       file: string;
     };
+    /** CliConnection */
+    CliConnection: {
+      /**
+       * Provider
+       * @enum {string}
+       */
+      provider: "codex" | "claude";
+      /**
+       * State
+       * @enum {string}
+       */
+      state:
+        "not_installed" | "logged_out" | "connected" | "logging_in" | "error";
+      /** Auth Method */
+      auth_method?: ("account" | "api_key" | "external") | null;
+      /** Message */
+      message?: string | null;
+    };
+    /** CliLoginInput */
+    CliLoginInput: Record<string, never>;
     /** DraftInput */
     DraftInput: {
       /**
@@ -1252,6 +1323,96 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Readiness"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  cli_connections_api_settings_cli_connections_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CliConnection"][];
+        };
+      };
+    };
+  };
+  cli_login_api_settings_cli_connections__provider__login_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        provider: "codex" | "claude";
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CliLoginInput"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CliConnection"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  cancel_cli_login_api_settings_cli_connections__provider__cancel_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        provider: "codex" | "claude";
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CliLoginInput"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CliConnection"];
         };
       };
       /** @description Validation Error */
