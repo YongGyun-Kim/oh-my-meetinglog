@@ -10,11 +10,12 @@ import {
   X,
 } from "lucide-react";
 import { api, message } from "../../lib/api";
-import type { Mode, Transcript, Turn } from "../../lib/types";
+import type { Mode, Transcript, Sentence, FormOption } from "../../lib/types";
 import { AudioPlayer, type Player } from "./AudioPlayer";
 import { TranscriptPane } from "./TranscriptPane";
 import { AnalysisPane } from "./AnalysisPane";
 import { SpeakerEditor } from "./SpeakerEditor";
+import { AnalysisFormDialog } from "./AnalysisFormDialog";
 import { useRecording } from "./useRecording";
 
 export function RecordingDetail({
@@ -29,6 +30,8 @@ export function RecordingDetail({
   const { detail, refresh, error } = useRecording(id);
   const [selected, setSelected] = useState<string | null>(null);
   const [tab, setTab] = useState<"transcript" | "analysis">("analysis");
+  const [forms, setForms] = useState<FormOption[]>([]);
+  const [chooseForm, setChooseForm] = useState(false);
   const [speakers, setSpeakers] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [actionError, setActionError] = useState("");
@@ -36,7 +39,14 @@ export function RecordingDetail({
   const [mode, setMode] = useState<Mode>("local_only");
   const [historical, setHistorical] = useState<Transcript | null>(null);
   const [showHistorical, setShowHistorical] = useState(false);
+  const [showReview, setShowReview] = useState(false);
   const player = useRef<Player>(null);
+  useEffect(() => {
+    void api
+      .forms()
+      .then(setForms)
+      .catch((reason) => setActionError(message(reason)));
+  }, []);
   useEffect(() => {
     void api
       .settings()
@@ -72,7 +82,7 @@ export function RecordingDetail({
       setBusy(false);
     }
   };
-  const seek = (turn: Turn) => {
+  const seek = (turn: Sentence) => {
     setSelected(turn.id);
     player.current?.seek(turn.start_ms);
     setTab("transcript");
@@ -94,6 +104,18 @@ export function RecordingDetail({
       </div>
     );
   const transcript = showHistorical ? historical : detail.transcript;
+  const playSentence = (sentence: Sentence) => {
+    const sentences = transcript?.turns.flatMap((turn) => turn.sentences) ?? [];
+    const next =
+      sentences[sentences.findIndex((item) => item.id === sentence.id) + 1];
+    const end =
+      next && next.start_ms > sentence.start_ms
+        ? next.start_ms
+        : sentence.end_ms;
+    setSelected(sentence.id);
+    setTab("transcript");
+    player.current?.play(sentence.start_ms, end);
+  };
   const evidenceTranscript = detail.analysis_stale
     ? historical
     : detail.transcript;
@@ -126,7 +148,7 @@ export function RecordingDetail({
                   href={`/api/recordings/${id}/export?format=markdown${exportQuery}`}
                   download
                 >
-                  Markdown
+                  Markdown · 에이전트 전달용
                 </a>
                 <a
                   href={`/api/recordings/${id}/export?format=json${exportQuery}`}
@@ -196,15 +218,15 @@ export function RecordingDetail({
       )}
       {detail.analysis_stale && (
         <div className="notice">
-          수정 전 전사를 바탕으로 만든 분석이에요. 근거를 누르면 당시의 전사를
-          볼 수 있어요.
+          수정 전 전사를 바탕으로 만든 분석이에요. 근거 보기를 켜고 근거를
+          누르면 당시 전사를 볼 수 있어요.
           <button
             disabled={busy || !!activeJob || !detail.transcript}
             onClick={() => {
-              void act(() => api.analyze(id, detail.transcript!.id, mode));
+              setChooseForm(true);
             }}
           >
-            다시 분석
+            다시 정리
           </button>
         </div>
       )}
@@ -231,8 +253,17 @@ export function RecordingDetail({
           <div className="panel-heading">
             <h2>
               <FileText size={16} />
-              전사 <small>{transcript?.turns.length ?? 0}개 발언</small>
+              전사 <small>{transcript?.turns.length ?? 0}개 턴</small>
             </h2>
+            {transcript && (
+              <button
+                className="text-button"
+                aria-pressed={showReview}
+                onClick={() => setShowReview((visible) => !visible)}
+              >
+                {showReview ? "검토 정보 숨기기" : "검토 정보 보기"}
+              </button>
+            )}
             {transcript && !showHistorical && (
               <button className="text-button" onClick={() => setSpeakers(true)}>
                 <Users size={14} />
@@ -251,10 +282,11 @@ export function RecordingDetail({
           {transcript ? (
             <TranscriptPane
               transcript={transcript}
-              selectedTurnId={selected}
-              onSeek={seek}
+              selectedSentenceId={selected}
+              onSeek={playSentence}
               onRefresh={refresh}
               readOnly={showHistorical}
+              showReview={showReview}
             />
           ) : (
             <div className="result-empty">
@@ -281,27 +313,36 @@ export function RecordingDetail({
               <Sparkles size={16} />
               대화 정리
             </h2>
+            {detail.analysis && (
+              <small>
+                {
+                  forms.find((option) => option.id === detail.analysis?.form)
+                    ?.title
+                }
+              </small>
+            )}
             {detail.transcript?.turns.length ? (
               <button
                 className="text-button"
                 disabled={busy || !!activeJob}
                 onClick={() => {
-                  void act(() => api.analyze(id, detail.transcript!.id, mode));
+                  setChooseForm(true);
                 }}
               >
                 <RefreshCw size={13} />
-                다시 분석
+                {detail.analysis ? "다시 정리" : "대화 정리"}
               </button>
             ) : null}
           </div>
           {detail.analysis ? (
             <AnalysisPane
+              key={detail.analysis.id}
               analysis={detail.analysis}
               transcript={evidenceTranscript}
               onEvidence={(turnId) => {
-                const turn = evidenceTranscript?.turns.find(
-                  (item) => item.id === turnId,
-                );
+                const turn = evidenceTranscript?.turns
+                  .flatMap((item) => item.sentences)
+                  .find((item) => item.id === turnId);
                 if (turn) {
                   if (detail.analysis_stale) setShowHistorical(true);
                   seek(turn);
@@ -319,7 +360,7 @@ export function RecordingDetail({
               <p>
                 {detail.job?.stage === "no_speech"
                   ? "음성이 있는 파일인지 확인해 주세요."
-                  : "분석이 끝나면 주제, 질문과 답변, 합의한 내용을 확인할 수 있어요."}
+                  : "대화 정리를 누르고 정리할 폼을 선택해 주세요."}
               </p>
             </div>
           )}
@@ -373,6 +414,20 @@ export function RecordingDetail({
           </button>
         )}
       </details>
+      {chooseForm && detail.transcript && (
+        <AnalysisFormDialog
+          forms={forms}
+          initial={detail.analysis?.form ?? "meeting"}
+          busy={busy}
+          onClose={() => setChooseForm(false)}
+          onStart={(form) => {
+            void act(async () => {
+              await api.analyze(id, detail.transcript!.id, mode, form);
+              setChooseForm(false);
+            });
+          }}
+        />
+      )}
       {speakers && detail.transcript && (
         <SpeakerEditor
           transcript={detail.transcript}

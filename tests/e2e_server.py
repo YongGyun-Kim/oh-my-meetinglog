@@ -7,10 +7,10 @@ from pathlib import Path
 
 from meetinglog.config import Settings
 from meetinglog.db import Database
-from meetinglog.domain import AnalysisVersion, SpeechResult, StageRequest, Transcript, new_id
+from meetinglog.domain import AnalysisVersion, StageRequest, Transcript, new_id
 from meetinglog.recordings.storage import atomic_json
 
-from tests.analysis_fixtures import analysis_fixture, transcript_fixture
+from tests.analysis_fixtures import analysis_fixture, as_speech, transcript_fixture
 
 
 def stage(path: str):
@@ -20,12 +20,7 @@ def stage(path: str):
 
         normalize(Path(request.input_path), Path(request.output_path).with_suffix(".wav"))
         transcript = transcript_fixture(request.recording_id)
-        result = SpeechResult(
-            turns=transcript.turns,
-            speakers=transcript.speakers,
-            provider="test",
-            model="fixed-browser-fixture",
-        )
+        result = as_speech(transcript)
     else:
         transcript = Transcript.model_validate_json(Path(request.input_path).read_text())
         result = AnalysisVersion(
@@ -35,6 +30,7 @@ def stage(path: str):
             provider="test",
             model="fixed-browser-fixture",
             prompt_version="test-v1",
+            form=request.form,
         )
     atomic_json(Path(request.output_path), result.model_dump(mode="json"))
 

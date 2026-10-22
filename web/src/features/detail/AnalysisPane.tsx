@@ -1,4 +1,4 @@
-import { clock } from "../../lib/api";
+import { useState } from "react";
 import type { Analysis, Fact, Transcript } from "../../lib/types";
 
 export function AnalysisPane({
@@ -11,29 +11,32 @@ export function AnalysisPane({
   onEvidence: (id: string) => void;
 }) {
   const body = analysis.body;
-  const citations = (ids: string[]) => (
-    <span className="citations">
-      {ids.map((id) => {
-        const turn = transcript?.turns.find((item) => item.id === id);
-        const name =
-          transcript?.speakers.find((item) => item.id === turn?.speaker_id)
-            ?.display_name ?? "미확인 화자";
-        return turn ? (
-          <button
-            key={id}
-            aria-label={`근거 ${clock(turn.start_ms)} ${name}`}
-            onClick={() => onEvidence(id)}
-          >
-            {clock(turn.start_ms)} {name}
-          </button>
-        ) : null;
-      })}
-    </span>
+  const [showEvidence, setShowEvidence] = useState(false);
+  const sentences = new Set(
+    transcript?.turns.flatMap((turn) =>
+      turn.sentences.map((sentence) => sentence.id),
+    ),
   );
+  const citations = (ids: string[]) =>
+    showEvidence && (
+      <span className="citations">
+        {ids.map((id, index) => {
+          return sentences.has(id) ? (
+            <button
+              key={id}
+              aria-label={`근거 문장 ${id}`}
+              onClick={() => onEvidence(id)}
+            >
+              근거 {index + 1}
+            </button>
+          ) : null;
+        })}
+      </span>
+    );
   const fact = (item: Fact, index: number) => (
     <div className="analysis-fact" key={index}>
       <p>{item.text}</p>
-      {citations(item.evidence_turn_ids)}
+      {citations(item.evidence_sentence_ids)}
     </div>
   );
   const kind = {
@@ -44,6 +47,15 @@ export function AnalysisPane({
   }[body.overview.kind];
   return (
     <div className="analysis-scroll">
+      <div className="analysis-options">
+        <button
+          className="text-button"
+          aria-pressed={showEvidence}
+          onClick={() => setShowEvidence((visible) => !visible)}
+        >
+          {showEvidence ? "근거 숨기기" : "근거 보기"}
+        </button>
+      </div>
       <div className="analysis-intro">
         <span className="kind-label">{kind}</span>
         <h3>대화 개요</h3>
@@ -63,15 +75,16 @@ export function AnalysisPane({
               <div className="topic-title">
                 <span>{String(index + 1).padStart(2, "0")}</span>
                 <h4>{topic.title}</h4>
-                <small>
-                  {clock(topic.start_ms)}–{clock(topic.end_ms)}
-                </small>
               </div>
-              {topic.discussion.map(fact)}
+              <div className="analysis-paragraph">
+                {topic.discussion.map(fact)}
+              </div>
               {!!topic.different_views.length && (
                 <div className="different-views">
                   <h5>서로 다른 의견</h5>
-                  {topic.different_views.map(fact)}
+                  <div className="analysis-paragraph">
+                    {topic.different_views.map(fact)}
+                  </div>
                 </div>
               )}
               {topic.conclusion && (
@@ -128,13 +141,13 @@ export function AnalysisPane({
                 </small>
               )}
               {action.due_text && <small> · {action.due_text}</small>}
-              {citations(action.evidence_turn_ids)}
+              {citations(action.evidence_sentence_ids)}
             </div>
           ))}
         </section>
       )}
       <p className="analysis-footnote">
-        AI가 분석한 내용이에요. 근거 발언과 원본 음성으로 확인해 주세요.
+        AI가 정리한 내용이에요. 필요한 내용은 원본과 확인해 주세요.
       </p>
     </div>
   );

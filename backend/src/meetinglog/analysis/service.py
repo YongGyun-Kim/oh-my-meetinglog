@@ -2,13 +2,15 @@ import json
 from pathlib import Path
 from typing import Protocol
 
-from meetinglog.analysis.chunking import chunk_transcript
+from meetinglog.analysis.chunking import chunk_input
 from meetinglog.analysis.grounding import GroundingError, validate_grounding
+from meetinglog.analysis.input import AnalysisInput, prepare_input
 from meetinglog.analysis.prompts import PROMPT_VERSION
 from meetinglog.config import Settings
 from meetinglog.db import ApiError, Database
 from meetinglog.domain import (
     AnalysisBody,
+    AnalysisForm,
     AnalysisVersion,
     Job,
     Mode,
@@ -24,7 +26,7 @@ class AnalysisEngine(Protocol):
     provider: str
     model: str
 
-    def generate(self, transcript: Transcript, feedback: str | None = None) -> AnalysisBody: ...
+    def generate(self, transcript: AnalysisInput, feedback: str | None = None) -> AnalysisBody: ...
     def summarize(self, overviews: list[Overview]) -> Overview: ...
 
 
@@ -38,8 +40,12 @@ def unique(values):
     return result
 
 
-def analyze_with(engine: AnalysisEngine, transcript: Transcript) -> AnalysisBody:
-    parts = chunk_transcript(transcript)
+def analyze_with(
+    engine: AnalysisEngine, transcript: Transcript, progress=None, form: AnalysisForm = "meeting"
+) -> AnalysisBody:
+    source = transcript
+    transcript, turn_ids, speaker_ids = prepare_input(source)
+    parts = chunk_input(transcript, form=form)
     if not parts:
         raise ApiError("no_speech", "분석할 발언이 없습니다", 409)
     bodies = []
@@ -53,8 +59,10 @@ def analyze_with(engine: AnalysisEngine, transcript: Transcript) -> AnalysisBody
             except GroundingError as error:
                 if attempt:
                     raise
-                feedback = error.code
+                feedback = error.feedback
         bodies.append(body)
+        if progress:
+            progress(len(bodies), len(parts))
     overviews = [body.overview for body in bodies]
     while len(overviews) > 1:
         groups, group, size = [], [], 0
@@ -71,12 +79,17 @@ def analyze_with(engine: AnalysisEngine, transcript: Transcript) -> AnalysisBody
             groups.append(group)
         if all(len(group) == 1 for group in groups):
             raise ApiError("context_limit", "전체 요약을 안전한 입력 크기로 합치지 못했습니다", 503)
-        overviews = [engine.summarize(group) if len(group) > 1 else group[0] for group in groups]
+        overviews = []
+        for group in groups:
+            overviews.append(engine.summarize(group) if len(group) > 1 else group[0])
+            if progress and len(group) > 1:
+                progress(len(parts), len(parts))
+    order = {line.id: index for index, line in enumerate(transcript.lines)}
     merged = AnalysisBody(
         overview=overviews[0],
         topics=sorted(
             unique([topic for body in bodies for topic in body.topics]),
-            key=lambda topic: topic.start_ms,
+            key=lambda topic: min(order[identifier] for identifier in topic.evidence_sentence_ids),
         ),
         question_answers=unique([item for body in bodies for item in body.question_answers]),
         agreements=unique([item for body in bodies for item in body.agreements]),
@@ -84,7 +97,26 @@ def analyze_with(engine: AnalysisEngine, transcript: Transcript) -> AnalysisBody
         actions=unique([item for body in bodies for item in body.actions]),
     )
     validate_grounding(merged, transcript)
-    return merged
+
+    def restore(value):
+        if isinstance(value, dict):
+            if "evidence_sentence_ids" in value:
+                value["evidence_sentence_ids"] = [
+                    turn_ids[identifier] for identifier in value["evidence_sentence_ids"]
+                ]
+            if value.get("owner_speaker_id") is not None:
+                value["owner_speaker_id"] = speaker_ids[value["owner_speaker_id"]]
+            for child in value.values():
+                restore(child)
+        elif isinstance(value, list):
+            for child in value:
+                restore(child)
+
+    data = merged.model_dump()
+    restore(data)
+    result = AnalysisBody.model_validate(data)
+    validate_grounding(result, source)
+    return result
 
 
 class AnalysisService:
@@ -94,21 +126,27 @@ class AnalysisService:
         self.event_path = event_path
 
     def generate(
-        self, transcript_id: str, mode: Mode, producer_job_id: str | None = None
+        self,
+        transcript_id: str,
+        mode: Mode,
+        producer_job_id: str | None = None,
+        form: AnalysisForm = "meeting",
     ) -> AnalysisVersion:
         transcript = TranscriptRepository(self.db).get(transcript_id)
-        return self.generate_from(transcript, mode)
+        return self.generate_from(transcript, mode, form)
 
-    def generate_from(self, transcript: Transcript, mode: Mode) -> AnalysisVersion:
+    def generate_from(
+        self, transcript: Transcript, mode: Mode, form: AnalysisForm = "meeting"
+    ) -> AnalysisVersion:
         from meetinglog.engines.cloud_analysis import CloudAnalysis
-        from meetinglog.engines.local_analysis import LocalAnalysis
+        from meetinglog.engines.local_analysis import LocalAnalysis, unload_ollama
 
         if not transcript.turns:
             raise ApiError("no_speech", "분석할 발언이 없습니다", 409)
         local_engine, local_error, revisions = None, None, {}
         if mode != "api":
             try:
-                local_engine = LocalAnalysis(self.settings)
+                local_engine = LocalAnalysis(self.settings, form=form)
                 digest = local_engine.digest()
                 if digest:
                     revisions["analysis"] = digest
@@ -121,10 +159,23 @@ class AnalysisService:
             return AnalysisVersion(
                 id=new_id(),
                 transcript_id=transcript.id,
-                body=analyze_with(engine, transcript),
+                body=analyze_with(
+                    engine,
+                    transcript,
+                    form=form,
+                    progress=lambda completed, total: policy.record(
+                        {
+                            "stage": "analysis",
+                            "event": "analysis_progress",
+                            "completed": completed,
+                            "total": total,
+                        }
+                    ),
+                ),
                 provider=engine.provider,
                 model=engine.model,
                 prompt_version=PROMPT_VERSION,
+                form=form,
             )
 
         def run_local():
@@ -132,13 +183,18 @@ class AnalysisService:
                 raise local_error
             return run(local_engine)
 
-        version = policy.execute(
-            "analysis",
-            mode,
-            max(turn.end_ms for turn in transcript.turns),
-            run_local,
-            lambda: run(CloudAnalysis(self.settings)),
-        )
+        try:
+            version = policy.execute(
+                "analysis",
+                mode,
+                max(sentence.end_ms for _, sentence in transcript.entries()),
+                run_local,
+                lambda: run(CloudAnalysis(self.settings, form=form)),
+            )
+        finally:
+            if local_engine:
+                local_engine.client.close()
+                unload_ollama(self.settings)
         self.events = policy.events
         return version
 
@@ -147,7 +203,7 @@ class AnalysisService:
         with self.db.session(immediate=True) as connection:
             assert_publishable(connection, job.recording_id, job.generation, job.id)
             row = connection.execute("SELECT * FROM jobs WHERE id=?", (job.id,)).fetchone()
-            if row["transcript_id"] != version.transcript_id:
+            if row["transcript_id"] != version.transcript_id or job.form != version.form:
                 raise ApiError("version_conflict", "분석의 기준 전사가 달라졌습니다", 409)
             existing = connection.execute(
                 "SELECT payload FROM analyses WHERE producer_job_id=?", (job.id,)

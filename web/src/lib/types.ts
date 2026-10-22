@@ -12,3 +12,7 @@ export type Mode = Readiness["mode"];
 export type Analysis = components["schemas"]["AnalysisVersion"];
 export type Fact = components["schemas"]["Fact"];
 export type EditRequest = components["schemas"]["EditRequest"];
+
+export type Sentence = components["schemas"]["Sentence"];
+export type FormOption = components["schemas"]["FormOption"];
+export type AnalysisForm = FormOption["id"];

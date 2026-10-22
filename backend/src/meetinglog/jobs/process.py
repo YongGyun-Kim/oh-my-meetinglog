@@ -50,12 +50,16 @@ class ProcessRunner:
         from meetinglog.jobs.events import stage_events
 
         seen = set()
+        progressed = time.monotonic()
 
         def consume_events():
+            nonlocal progressed
             for key, name, metadata in stage_events(events_file):
                 if key not in seen:
                     self.on_event(key, name, metadata)
                     seen.add(key)
+                    if request.stage == "analysis" and name == "analysis_progress":
+                        progressed = time.monotonic()
 
         environment = {
             **os.environ,
@@ -64,7 +68,7 @@ class ProcessRunner:
             "TRANSFORMERS_OFFLINE": "1",
             "TOKENIZERS_PARALLELISM": "false",
         }
-        started, last_heartbeat = time.monotonic(), 0.0
+        last_heartbeat = 0.0
         control, lifetime = os.pipe()
         ownership_lock = Path(self.env.get("MEETINGLOG_DATA_DIR", output.parent)) / "inference.lock"
         with output.with_suffix(".log").open("ab") as log:
@@ -94,7 +98,7 @@ class ProcessRunner:
                     consume_events()
                     if self.cancelled():
                         raise ApiError("job_cancelled", "작업이 취소되었습니다", 409)
-                    if time.monotonic() - started > timeout_s:
+                    if time.monotonic() - progressed > timeout_s:
                         raise ApiError(
                             "stage_timeout",
                             "처리 시간을 초과했습니다. 다시 시도하거나 처리 방식을 변경하세요",

@@ -1,6 +1,7 @@
 import pytest
 from meetinglog.db import ApiError
-from meetinglog.domain import Speaker, SpeechResult, Turn
+from meetinglog.domain import Speaker, SpeechResult
+from meetinglog.domain import SpeechSegment as Turn
 
 
 @pytest.fixture
@@ -37,9 +38,9 @@ def test_edit_preserves_original_and_rejects_stale_base(versioned):
         original.recording_id, original.id, [{"turn_id": "t2", "text": "이번 주에 시작합니다"}]
     )
     assert edited.parent_id == original.id
-    assert edited.turns[1].text_original == "다음 주에 시작합니다"
-    assert edited.turns[1].text_edited == "이번 주에 시작합니다"
-    assert service.repository.get(original.id).turns[1].text_edited is None
+    assert edited.turns[1].sentences[0].text_original == "다음 주에 시작합니다"
+    assert edited.turns[1].sentences[0].text_edited == "이번 주에 시작합니다"
+    assert service.repository.get(original.id).turns[1].sentences[0].text_edited is None
     with pytest.raises(VersionConflict):
         service.edit(original.recording_id, original.id, [{"turn_id": "t1", "text": "아니요"}])
 

@@ -6,13 +6,24 @@ from fastapi import APIRouter, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from pydantic import Field
 
+from meetinglog.analysis.forms import FORMS, FormOption
 from meetinglog.analysis.repository import AnalysisRepository
 from meetinglog.db import ApiError, require_recording
-from meetinglog.domain import AnalysisVersion, Contract, Job, Mode, Recording, Transcript
+from meetinglog.domain import (
+    AnalysisForm,
+    AnalysisVersion,
+    Contract,
+    Job,
+    Mode,
+    Recording,
+    Transcript,
+)
 from meetinglog.exports import Exporter, processing_history
 from meetinglog.jobs.repository import JobRepository, as_job
 from meetinglog.recordings.deletion import DeletionService
+from meetinglog.recordings.media import prepare_playback, probe
 from meetinglog.recordings.service import InputService, as_recording
+from meetinglog.recordings.storage import Storage
 from meetinglog.settings_api import effective_mode
 from meetinglog.transcripts.repository import TranscriptRepository
 
@@ -62,10 +73,16 @@ class ProcessingInput(Contract):
 
 class AnalyzeInput(ProcessingInput):
     transcript_id: str
+    form: AnalysisForm
 
 
 def service(request: Request) -> InputService:
     return InputService(request.app.state.settings, request.app.state.db)
+
+
+@router.get("/analysis-forms", response_model=list[FormOption])
+def analysis_forms():
+    return FORMS
 
 
 @router.post("", response_model=Recording, status_code=201)
@@ -173,6 +190,18 @@ def audio(request: Request, recording_id: str):
     if path is None or not path.is_file():
         raise ApiError("audio_unavailable", "재생할 음성이 없습니다", 404)
     content_type = audio_type(path)
+    needs_wav = content_type == "audio/mp4" and probe(path).codec not in ("aac", "mp3")
+    if content_type == "audio/webm" or needs_wav:
+        # WebM 길이 정보와 브라우저 미지원 코덱은 원본을 보존한 재생용 파일로 처리한다.
+        with Storage(request.app.state.settings.data_dir).input_lock(recording_id):
+            with request.app.state.db.session() as connection:
+                require_recording(connection, recording_id)
+            playback = path.with_name("playback.wav" if needs_wav else "playback.webm")
+            if not playback.is_file():
+                prepare_playback(path, playback)
+            path = playback
+            if needs_wav:
+                content_type = "audio/wav"
     if content_type is None:
         if not normalized or not Path(normalized).is_file():
             raise ApiError("audio_not_ready", "재생용 음성을 준비하고 있습니다", 503)
@@ -200,7 +229,7 @@ def process(request: Request, recording_id: str, body: ProcessingInput):
 @router.post("/{recording_id}/analyze", response_model=Job)
 def analyze(request: Request, recording_id: str, body: AnalyzeInput):
     return JobRepository(request.app.state.db).enqueue(
-        recording_id, "analyze", body.transcript_id, body.mode
+        recording_id, "analyze", body.transcript_id, body.mode, form=body.form
     )
 
 

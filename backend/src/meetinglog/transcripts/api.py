@@ -9,6 +9,7 @@ router = APIRouter(prefix="/api/recordings", tags=["transcripts"])
 
 
 class EditChange(Contract):
+    sentence_id: str | None = None
     turn_id: str | None = None
     text: str | None = Field(default=None, max_length=20000)
     speaker_id: str | None = None

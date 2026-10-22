@@ -3,7 +3,7 @@ import sys
 
 from meetinglog.domain import AnalysisVersion, new_id
 
-from tests.analysis_fixtures import analysis_fixture, transcript_fixture
+from tests.analysis_fixtures import analysis_fixture, as_speech, transcript_fixture
 from tests.audio_fixtures import write_silence
 
 
@@ -30,7 +30,7 @@ def test_analysis_failure_preserves_generated_transcript(
             return [sys.executable, "-c", "raise SystemExit(1)"]
         transcript = transcript_fixture(record.id)
         payload = {
-            "turns": [t.model_dump() for t in transcript.turns],
+            "turns": [t.model_dump() for t in as_speech(transcript).turns],
             "speakers": [s.model_dump() for s in transcript.speakers],
             "provider": "test",
             "model": "fixed",
@@ -45,14 +45,18 @@ def test_analysis_failure_preserves_generated_transcript(
 
     with Worker(settings, db, stage_command=command) as worker:
         worker.run_once()
-    assert repository.get(job.id).state == "failed"
+    assert repository.get(job.id).state == "succeeded"
+    assert repository.get(job.id).stage == "transcribed"
     transcript = TranscriptRepository(db).current(record.id)
-    assert transcript.turns[1].text_original == "다음 주에 시작하겠습니다."
+    analysis_job = repository.enqueue(record.id, "analyze", transcript.id, "local_only")
+    with Worker(settings, db, stage_command=command) as worker:
+        worker.run_once()
+    assert repository.get(analysis_job.id).state == "failed"
+    assert transcript.turns[1].sentences[0].text_original == "다음 주에 시작하겠습니다."
 
 
 def test_analysis_publication_is_idempotent_and_keeps_pinned_version(input_service, db, tmp_path):
     from meetinglog.analysis.service import AnalysisService
-    from meetinglog.domain import SpeechResult
     from meetinglog.jobs.repository import JobRepository
     from meetinglog.transcripts.repository import TranscriptRepository
     from meetinglog.transcripts.service import TranscriptService
@@ -64,7 +68,7 @@ def test_analysis_publication_is_idempotent_and_keeps_pinned_version(input_servi
     trans = TranscriptRepository(db)
     original = trans.save_generated(
         record.id,
-        SpeechResult(turns=source.turns, speakers=source.speakers, provider="test", model="fixed"),
+        as_speech(source),
         0,
     )
     repo = JobRepository(db)

@@ -1,5 +1,7 @@
 import type {
   EditRequest,
+  AnalysisForm,
+  FormOption,
   Job,
   Mode,
   Readiness,
@@ -104,15 +106,16 @@ export const api = {
       form.append("file", file);
       xhr.send(form);
     }),
+  forms: () => request<FormOption[]>("/recordings/analysis-forms"),
   settings: () => request<Readiness>("/settings"),
   updateMode: (mode: Mode) =>
     request<Readiness>("/settings", json("PATCH", { mode })),
   process: (id: string, mode: Mode) =>
     request<Job>(`${path(id)}/process`, json("POST", { mode })),
-  analyze: (id: string, transcriptId: string, mode: Mode) =>
+  analyze: (id: string, transcriptId: string, mode: Mode, form: AnalysisForm) =>
     request<Job>(
       `${path(id)}/analyze`,
-      json("POST", { mode, transcript_id: transcriptId }),
+      json("POST", { mode, transcript_id: transcriptId, form }),
     ),
   cancel: (jobId: string) =>
     request<Job>(`/jobs/${encodeURIComponent(jobId)}/cancel`, {

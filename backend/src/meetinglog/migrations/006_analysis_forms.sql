@@ -1,0 +1,1 @@
+ALTER TABLE jobs ADD COLUMN form TEXT NOT NULL DEFAULT 'meeting';

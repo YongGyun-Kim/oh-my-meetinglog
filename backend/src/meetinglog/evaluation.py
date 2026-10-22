@@ -130,6 +130,14 @@ def default_runner(path: Path, mode: Mode, engine: str = "qwen") -> dict:
         started = time.monotonic()
         with Worker(settings, db, stage_command=command if engine == "whisper" else None) as worker:
             worker.run_once()
+            transcript = TranscriptRepository(db).current(recording.id)
+            if (
+                JobRepository(db).get(job.id).state == "succeeded"
+                and transcript
+                and transcript.turns
+            ):
+                job = JobRepository(db).enqueue(recording.id, "analyze", transcript.id, mode)
+                worker.run_once()
         elapsed_ms = round((time.monotonic() - started) * 1000)
         finished = JobRepository(db).get(job.id)
         if finished.state != "succeeded":
@@ -153,6 +161,12 @@ def prediction_digest(prediction: dict) -> str:
     ids.update(
         {speaker["id"]: f"speaker-{index}" for index, speaker in enumerate(transcript["speakers"])}
     )
+    ids.update(
+        {
+            sentence["id"]: f"sentence-{index}"
+            for index, sentence in enumerate(prediction_segments(transcript))
+        }
+    )
 
     def stable(value):
         if isinstance(value, str):
@@ -175,6 +189,14 @@ def prediction_digest(prediction: dict) -> str:
     return hashlib.sha256(
         json.dumps(stable(payload), ensure_ascii=False, sort_keys=True).encode()
     ).hexdigest()
+
+
+def prediction_segments(transcript: dict) -> list[dict]:
+    return [
+        {**sentence, "speaker_id": turn.get("speaker_id")}
+        for turn in transcript["turns"]
+        for sentence in turn.get("sentences", [turn])
+    ]
 
 
 def evaluate_manifest(path: Path, mode: Mode, *, runner=None, engine="qwen") -> EvaluationReport:
@@ -224,9 +246,8 @@ def evaluate_manifest(path: Path, mode: Mode, *, runner=None, engine="qwen") -> 
             entry["prediction"] = prediction
             entry["prediction_sha256"] = prediction_digest(prediction)
             transcript = prediction["transcript"]
-            text = "".join(
-                turn.get("text_edited") or turn["text_original"] for turn in transcript["turns"]
-            )
+            segments = prediction_segments(transcript)
+            text = "".join(turn.get("text_edited") or turn["text_original"] for turn in segments)
             if item.split == "performance":
                 performance_ms = max(performance_ms, duration)
             if item.reference_transcript_path:
@@ -246,7 +267,7 @@ def evaluate_manifest(path: Path, mode: Mode, *, runner=None, engine="qwen") -> 
                     raise ValueError("RTTM must contain one recording")
                 reference_diarization = next(iter(annotations.values()))
                 hypothesis = Annotation()
-                for index, turn in enumerate(transcript["turns"]):
+                for index, turn in enumerate(segments):
                     if turn.get("speaker_id"):
                         hypothesis[
                             Segment(turn["start_ms"] / 1000, turn["end_ms"] / 1000), index

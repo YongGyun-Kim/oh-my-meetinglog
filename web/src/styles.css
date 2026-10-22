@@ -1075,6 +1075,20 @@ h1 {
   font-size: 10px;
   color: #8090a3;
 }
+.analysis-options {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+.analysis-paragraph {
+  margin: 11px 0;
+}
+.analysis-paragraph > .analysis-fact {
+  margin: 0;
+}
+.analysis-fact > p {
+  white-space: pre-wrap;
+}
 .citations {
   display: flex;
   flex-wrap: wrap;
@@ -1475,4 +1489,50 @@ h1 {
   .settings-page .page-heading p {
     font-size: 10px;
   }
+}
+
+.sentence {
+  padding: 0;
+}
+.sentence-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.sentence-line > .edit-turn {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+}
+.sentence-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 3px 0;
+}
+.sentence.selected {
+  background: var(--surface-hover, #f1f1ef);
+}
+.sentence-text {
+  display: block;
+  width: 100%;
+  background: none;
+  border: 0;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+.sentence-text:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+.analysis-form-choice {
+  display: grid;
+  gap: 8px;
+  margin: 20px 0;
+}
+.analysis-form-choice select {
+  width: 100%;
+  padding: 10px;
+  font: inherit;
 }

@@ -2,6 +2,7 @@ from contextlib import nullcontext
 
 from meetinglog.db import ApiError, Database, require_recording
 from meetinglog.domain import SpeechResult, Transcript, new_id
+from meetinglog.transcripts.assembly import assemble
 
 
 def assert_publishable(connection, recording_id: str, generation: int, job_id: str | None = None):
@@ -111,7 +112,7 @@ class TranscriptRepository:
                 id=new_id(),
                 recording_id=recording_id,
                 parent_id=record["current_transcript_id"],
-                turns=turns,
+                turns=assemble(turns),
                 speakers=speakers,
             )
             self.insert(connection, transcript, producer_job_id)

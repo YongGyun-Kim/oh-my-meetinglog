@@ -4,7 +4,8 @@ from pathlib import Path
 
 import soundfile as sf
 
-from meetinglog.domain import Speaker, SpeechResult, Turn, Word, new_id
+from meetinglog.domain import Speaker, SpeechResult, Word, new_id
+from meetinglog.domain import SpeechSegment as Turn
 from meetinglog.recordings.alignment import SpeakerSpan, align_turns, duplicate_word
 from meetinglog.recordings.storage import atomic_json
 
@@ -161,6 +162,10 @@ class LocalSpeech:
                         turn.text_original = turn.text_original[position:]
                         turn.start_ms = fresh[0].start_ms
                     turn.review_flags.append("boundary_review")
+                    word_flags = fresh[0].review_flags
+                    if word_flags is None:
+                        word_flags = turn.review_flags
+                    fresh[0].review_flags = list(dict.fromkeys([*word_flags, "boundary_review"]))
                     turn.words = fresh
                 kept_words.extend(fresh)
                 turn.speaker_id = mapping.get(turn.speaker_id)

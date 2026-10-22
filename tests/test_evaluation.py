@@ -74,3 +74,50 @@ def test_runner_uses_real_paths_and_reports_silence_separately(tmp_path):
     assert report.cer is None
     assert report.items[0]["silence_failure"] is False
     assert report.peak_memory_bytes is None
+
+
+def test_evaluation_reads_nested_sentences_and_normalizes_their_ids(tmp_path):
+    from meetinglog.evaluation import evaluate_manifest, prediction_digest
+
+    write_silence(tmp_path / "audio.wav")
+    (tmp_path / "reference.txt").write_text("")
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "items": [
+                    {
+                        "id": "one",
+                        "audio_path": "audio.wav",
+                        "reference_transcript_path": "reference.txt",
+                        "reference_rttm_path": None,
+                        "human_review_path": None,
+                        "split": "quality",
+                    }
+                ],
+            }
+        )
+    )
+
+    def prediction(identifier):
+        return {
+            "transcript": {
+                "speakers": [],
+                "turns": [
+                    {
+                        "id": "turn:" + identifier,
+                        "speaker_id": None,
+                        "sentences": [
+                            {"id": identifier, "start_ms": 0, "end_ms": 200, "text_original": "네"}
+                        ],
+                    }
+                ],
+            },
+            "analysis": None,
+        }
+
+    report = evaluate_manifest(manifest, "local_only", runner=lambda *_: prediction("one"))
+    assert report.items[0]["silence_failure"] is True
+    assert "error" not in report.items[0]
+    assert prediction_digest(prediction("one")) == prediction_digest(prediction("two"))

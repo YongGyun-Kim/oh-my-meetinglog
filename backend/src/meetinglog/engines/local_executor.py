@@ -43,7 +43,7 @@ def execute(request: StageRequest, settings: Settings):
             settings,
             event_path=Path(request.output_path).with_suffix(".events.jsonl"),
         )
-        version = service.generate_from(transcript, request.mode)
+        version = service.generate_from(transcript, request.mode, request.form)
         atomic_json(
             Path(request.output_path).with_suffix(".events.json"), {"events": service.events}
         )

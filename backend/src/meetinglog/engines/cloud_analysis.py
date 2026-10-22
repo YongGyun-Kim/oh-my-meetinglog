@@ -1,13 +1,15 @@
+from meetinglog.analysis.input import AnalysisInput
 from meetinglog.analysis.prompts import messages, summary_messages
 from meetinglog.config import Settings
 from meetinglog.db import ApiError
-from meetinglog.domain import AnalysisBody, Overview, Transcript
+from meetinglog.domain import AnalysisBody, AnalysisForm, Overview
 
 
 class CloudAnalysis:
     provider = "openai"
 
-    def __init__(self, settings: Settings, client=None):
+    def __init__(self, settings: Settings, client=None, form: AnalysisForm = "meeting"):
+        self.form = form
         self.settings, self.model = settings, settings.openai_analysis_model
         if client is None:
             if not settings.openai_api_key:
@@ -39,8 +41,8 @@ class CloudAnalysis:
                 "upstream_network", "외부 분석 서비스에 연결하지 못했습니다", 503, True
             ) from None
 
-    def generate(self, transcript: Transcript, feedback: str | None = None) -> AnalysisBody:
-        return self._request(AnalysisBody, messages(transcript, feedback))
+    def generate(self, transcript: AnalysisInput, feedback: str | None = None) -> AnalysisBody:
+        return self._request(AnalysisBody, messages(transcript, feedback, self.form))
 
     def summarize(self, overviews: list[Overview]) -> Overview:
-        return self._request(Overview, summary_messages(overviews))
+        return self._request(Overview, summary_messages(overviews, self.form))

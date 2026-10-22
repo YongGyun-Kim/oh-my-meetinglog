@@ -1,10 +1,9 @@
 from fastapi.testclient import TestClient
 from meetinglog.app import create_app
-from meetinglog.domain import SpeechResult
 from meetinglog.jobs.repository import JobRepository
 from meetinglog.transcripts.repository import TranscriptRepository
 
-from tests.analysis_fixtures import transcript_fixture
+from tests.analysis_fixtures import as_speech, transcript_fixture
 from tests.audio_fixtures import write_silence
 
 
@@ -24,7 +23,7 @@ def populated_client(settings, db, tmp_path):
     source = transcript_fixture(record_id)
     transcript = TranscriptRepository(db).save_generated(
         record_id,
-        SpeechResult(turns=source.turns, speakers=source.speakers, provider="test", model="fixed"),
+        as_speech(source),
         0,
         job.id,
     )

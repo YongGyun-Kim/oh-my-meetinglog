@@ -25,11 +25,17 @@ it("retains an unsaved edit when its row leaves the virtual viewport", async () 
   transcript.turns = Array.from({ length: 30 }, (_, index) => ({
     ...transcript.turns[0],
     id: `t${index}`,
-    text_original: `원문 ${index}`,
+    sentences: [
+      {
+        ...transcript.turns[0].sentences[0],
+        id: `sentence-${index}`,
+        text_original: `원문 ${index}`,
+      },
+    ],
   }));
   const props = {
     transcript,
-    selectedTurnId: null,
+    selectedSentenceId: null,
     onSeek: () => {},
     onRefresh: async () => {},
   };

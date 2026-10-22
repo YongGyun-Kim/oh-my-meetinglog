@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
-from meetinglog.domain import Turn, Word, new_id
+from meetinglog.domain import SpeechSegment as Turn
+from meetinglog.domain import Word, new_id
 
 
 @dataclass(frozen=True)
@@ -97,15 +98,12 @@ def align_turns(
     turns = []
     for word, piece in zip(absolute, pieces, strict=True):
         speaker, flags = assign_speaker(word.start_ms, word.end_ms, speakers)
-        if (
-            turns
-            and turns[-1].speaker_id == speaker
-            and turns[-1].review_flags == flags
-            and word.start_ms - turns[-1].end_ms < 1200
-        ):
+        word.review_flags = flags
+        if turns and turns[-1].speaker_id == speaker:
             turns[-1].text_original += piece
             turns[-1].end_ms = max(turns[-1].end_ms, word.end_ms)
             turns[-1].words.append(word)
+            turns[-1].review_flags = list(dict.fromkeys([*turns[-1].review_flags, *flags]))
         else:
             turns.append(
                 Turn(

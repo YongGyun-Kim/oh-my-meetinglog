@@ -1,10 +1,11 @@
 import httpx
 from pydantic import BaseModel, ValidationError
 
+from meetinglog.analysis.input import AnalysisInput
 from meetinglog.analysis.prompts import messages, summary_messages
 from meetinglog.config import Settings
 from meetinglog.db import ApiError
-from meetinglog.domain import AnalysisBody, Overview, Transcript
+from meetinglog.domain import AnalysisBody, AnalysisForm, Overview
 from meetinglog.engines.policy import loopback_url
 
 
@@ -24,7 +25,8 @@ def unload_ollama(settings: Settings):
 class LocalAnalysis:
     provider = "ollama"
 
-    def __init__(self, settings: Settings, client=None):
+    def __init__(self, settings: Settings, client=None, form: AnalysisForm = "meeting"):
+        self.form = form
         self.settings, self.model = settings, settings.ollama_model
         self.client = client or httpx.Client(
             base_url=loopback_url(settings.ollama_url),
@@ -45,7 +47,7 @@ class LocalAnalysis:
                         "messages": input_messages,
                         "format": schema.model_json_schema(),
                         "stream": False,
-                        "keep_alive": 0,
+                        "keep_alive": "5m",
                         "options": {"num_ctx": 32768, "temperature": 0, "num_predict": 4096},
                     },
                 )
@@ -68,19 +70,12 @@ class LocalAnalysis:
             raise ApiError(
                 "ollama_unavailable", "Ollama와 gpt-oss:20b 실행 상태를 확인하세요", 503
             ) from None
-        finally:
-            try:
-                self.client.post(
-                    "/api/generate", json={"model": self.model, "keep_alive": 0}, timeout=2
-                )
-            except httpx.HTTPError:
-                pass
 
-    def generate(self, transcript: Transcript, feedback: str | None = None) -> AnalysisBody:
-        return self._request(AnalysisBody, messages(transcript, feedback))
+    def generate(self, transcript: AnalysisInput, feedback: str | None = None) -> AnalysisBody:
+        return self._request(AnalysisBody, messages(transcript, feedback, self.form))
 
     def summarize(self, overviews: list[Overview]) -> Overview:
-        return self._request(Overview, summary_messages(overviews))
+        return self._request(Overview, summary_messages(overviews, self.form))
 
     def digest(self) -> str | None:
         try:

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 
 function wav() {
   const length = 16000 * 6 * 2;
@@ -30,6 +31,9 @@ test("imports, edits, reanalyzes, seeks, exports and retains a conversation", as
     mimeType: "audio/wav",
     buffer: wav(),
   });
+  await page.getByRole("button", { name: "대화 정리", exact: true }).click();
+  await page.getByLabel("정리 폼", { exact: true }).selectOption("interview");
+  await page.getByRole("button", { name: "정리 시작", exact: true }).click();
   await expect(page.getByText("대화 개요", { exact: true })).toBeVisible();
   await expect(
     page.getByText("언제 서비스를 시작할까요?", { exact: true }),
@@ -51,15 +55,25 @@ test("imports, edits, reanalyzes, seeks, exports and retains a conversation", as
   await page.getByRole("button", { name: "수정 저장", exact: true }).click();
   await expect(page.getByText(/수정 전 전사를 바탕으로/)).toBeVisible();
   await page
-    .getByRole("button", { name: "다시 분석", exact: true })
+    .getByRole("button", { name: "다시 정리", exact: true })
     .last()
     .click();
+  await page.getByLabel("정리 폼", { exact: true }).selectOption("project");
+  await page.getByRole("button", { name: "정리 시작", exact: true }).click();
   await expect(page.getByText(/수정 전 전사를 바탕으로/)).not.toBeVisible();
+  const after = await (
+    await page.request.get(`/api/recordings/${page.url().split("#record/")[1]}`)
+  ).json();
+  expect(after.analysis.form).toBe("project");
+  await expect(
+    page.getByRole("button", { name: "근거 문장 t2", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "근거 보기", exact: true }).click();
   await page
-    .getByRole("button", { name: "근거 00:02 화자 B", exact: true })
+    .getByRole("button", { name: "근거 문장 t2", exact: true })
     .first()
     .click();
-  await expect(page.getByTestId("turn-t2")).toHaveAttribute(
+  await expect(page.getByTestId("sentence-t2")).toHaveAttribute(
     "aria-current",
     "true",
   );
@@ -69,6 +83,19 @@ test("imports, edits, reanalyzes, seeks, exports and retains a conversation", as
     )
     .toBeCloseTo(2.2, 1);
   await page.getByText("내보내기", { exact: true }).click();
+  const markdownPromise = page.waitForEvent("download");
+  await page
+    .getByRole("link", { name: "Markdown · 에이전트 전달용", exact: true })
+    .click();
+  const markdownDownload = await markdownPromise;
+  expect(markdownDownload.suggestedFilename()).toMatch(/\.md$/);
+  const markdown = await readFile((await markdownDownload.path())!, "utf8");
+  expect(markdown).toContain("기록 ID:");
+  expect(markdown).toContain("분석 기준 전사:");
+  expect(markdown).toContain("#### t2");
+  expect(markdown).toContain("인터뷰어");
+  expect(markdown).toContain("수정문: 서비스는 언제 시작할까요?");
+  expect(markdown).toContain("자동 전사 원문: 언제 서비스를 시작할까요?");
   const downloadPromise = page.waitForEvent("download");
   await page
     .getByRole("link", { name: "JSON · AI 분석용", exact: true })
@@ -98,13 +125,80 @@ test("imports, edits, reanalyzes, seeks, exports and retains a conversation", as
   await page.goto(path);
 });
 
+test("plays a transcript sentence until the next sentence and allows continuous playback", async ({
+  page,
+}) => {
+  const response = await page.request.post("/api/recordings", {
+    multipart: {
+      file: {
+        name: "문장 재생 검증.wav",
+        mimeType: "audio/wav",
+        buffer: wav(),
+      },
+    },
+  });
+  const recording = await response.json();
+  await page.goto(`/#record/${recording.id}`);
+  const audio = page.locator("audio");
+  await expect
+    .poll(() => audio.evaluate((element) => element.readyState))
+    .toBeGreaterThanOrEqual(1);
+  await page
+    .getByRole("button", { name: /발언 듣기/ })
+    .first()
+    .click();
+  await expect
+    .poll(() => audio.evaluate((element) => element.paused))
+    .toBe(false);
+  await expect
+    .poll(() => audio.evaluate((element) => element.currentTime))
+    .toBeGreaterThan(0.2);
+  await expect
+    .poll(() => audio.evaluate((element) => element.paused))
+    .toBe(true);
+  expect(await audio.evaluate((element) => element.currentTime)).toBeCloseTo(
+    2.2,
+    2,
+  );
+  await audio.evaluate((element) => element.play());
+  await expect
+    .poll(() => audio.evaluate((element) => element.currentTime))
+    .toBeGreaterThan(2.4);
+  await page.getByTestId("sentence-t2").locator(".sentence-text").click();
+  await expect
+    .poll(() => audio.evaluate((element) => element.paused))
+    .toBe(false);
+  await expect
+    .poll(() => audio.evaluate((element) => element.paused))
+    .toBe(true);
+  expect(await audio.evaluate((element) => element.currentTime)).toBeCloseTo(
+    5,
+    2,
+  );
+});
+
 test("captures fake microphone audio and finalizes before processing", async ({
   page,
 }) => {
+  await page.addInitScript(() => {
+    const state = window as unknown as { audioMetadata: number[] };
+    state.audioMetadata = [];
+    document.addEventListener(
+      "loadedmetadata",
+      (event) => {
+        if (event.target instanceof HTMLAudioElement)
+          state.audioMetadata.push(event.target.duration);
+      },
+      true,
+    );
+  });
   await page.goto("/");
   await page.getByRole("button", { name: "녹음 시작", exact: true }).click();
   await expect(page.getByText("00:01", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "녹음 종료", exact: true }).click();
+  await page.getByRole("button", { name: "대화 정리", exact: true }).click();
+  await page.getByLabel("정리 폼", { exact: true }).selectOption("interview");
+  await page.getByRole("button", { name: "정리 시작", exact: true }).click();
   await expect(page.getByText("대화 개요", { exact: true })).toBeVisible();
   await expect(
     page.getByRole("button", { name: "화자 정보", exact: true }),
@@ -115,6 +209,39 @@ test("captures fake microphone audio and finalizes before processing", async ({
   expect(detail.recording.source).toBe("microphone");
   expect(detail.recording.input_state).toBe("ready");
   expect(detail.job.state).toBe("succeeded");
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as unknown as { audioMetadata: number[] }).audioMetadata
+            .length,
+      ),
+    )
+    .toBeGreaterThan(0);
+  expect(
+    await page.evaluate(() =>
+      (window as unknown as { audioMetadata: number[] }).audioMetadata.every(
+        Number.isFinite,
+      ),
+    ),
+  ).toBe(true);
+  const audio = page.locator("audio");
+  const duration = await audio.evaluate((element) => element.duration);
+  expect(duration).toBeGreaterThan(0);
+  expect(Math.abs(duration - detail.recording.duration_ms / 1000)).toBeLessThan(
+    0.15,
+  );
+  await audio.evaluate(async (element) => {
+    element.currentTime = element.duration / 2;
+    await element.play();
+  });
+  await expect
+    .poll(() => audio.evaluate((element) => element.ended))
+    .toBe(true);
+  expect(await audio.evaluate((element) => element.duration)).toBeCloseTo(
+    duration,
+    2,
+  );
 });
 test("preserves an edit while scrolling a long virtual transcript", async ({
   page,
@@ -143,7 +270,13 @@ test("preserves an edit while scrolling a long virtual transcript", async ({
         ...Array.from({ length: 500 }, (_, index) => ({
           ...source,
           id: `extra-${index}`,
-          text_original: `긴 전사 시험 발언 ${index}`,
+          sentences: [
+            {
+              ...source.sentences[0],
+              id: `extra-sentence-${index}`,
+              text_original: `긴 전사 시험 발언 ${index}`,
+            },
+          ],
         })),
       );
     }
@@ -160,7 +293,7 @@ test("preserves an edit while scrolling a long virtual transcript", async ({
   await page.locator(".transcript-scroll").evaluate((element) => {
     element.scrollTop = 30_000;
   });
-  await expect(page.getByTestId("turn-t1")).not.toBeAttached();
+  await expect(page.getByTestId("sentence-t1")).not.toBeAttached();
   await page.locator(".transcript-scroll").evaluate((element) => {
     element.scrollTop = 0;
   });

@@ -2,6 +2,7 @@ import json
 import math
 import shutil
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -13,6 +14,7 @@ class MediaInfo:
     duration_ms: int
     sample_rate: int
     channels: int
+    codec: str
 
 
 def tool(name: str) -> str:
@@ -80,7 +82,7 @@ def probe(path: Path) -> MediaInfo:
             duration = max(timestamps, default=0) / 1_000_000
         if not math.isfinite(duration) or duration <= 0 or rate <= 0 or channels <= 0:
             raise ValueError
-        return MediaInfo(round(duration * 1000), rate, channels)
+        return MediaInfo(round(duration * 1000), rate, channels, audio["codec_name"])
     except (subprocess.SubprocessError, ValueError, KeyError, StopIteration, OSError) as error:
         raise ApiError(
             "invalid_audio", "읽을 수 있는 음성이 없습니다. 다른 파일을 선택하세요"
@@ -117,3 +119,35 @@ def normalize(source: Path, destination: Path) -> MediaInfo:
     except (subprocess.SubprocessError, OSError) as error:
         raise ApiError("decode_failed", "음성 변환에 실패했습니다") from error
     return probe(destination)
+
+
+def prepare_playback(source: Path, destination: Path) -> None:
+    try:
+        with tempfile.TemporaryDirectory(prefix="playback-", dir=destination.parent) as temporary:
+            output = Path(temporary) / f"audio{destination.suffix}"
+            subprocess.run(
+                [
+                    tool("ffmpeg"),
+                    "-nostdin",
+                    "-v",
+                    "error",
+                    "-protocol_whitelist",
+                    "file,pipe",
+                    "-i",
+                    str(source),
+                    "-map",
+                    "0:a:0",
+                    "-vn",
+                    "-c:a",
+                    "copy" if destination.suffix == ".webm" else "pcm_s16le",
+                    str(output),
+                ],
+                check=True,
+                capture_output=True,
+                timeout=180,
+            )
+            output.replace(destination)
+    except (subprocess.SubprocessError, OSError) as error:
+        raise ApiError(
+            "playback_failed", "재생용 음성을 준비하지 못했어요. 다시 시도해 주세요.", 503
+        ) from error

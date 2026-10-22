@@ -13,8 +13,18 @@ ALLOWED = {
     "reason",
     "attempt",
     "duplicate_cost_possible",
+    "completed",
+    "total",
 }
-EVENTS = {"request_started", "retry", "engine_result", "fallback", "local_started", "engine_failed"}
+EVENTS = {
+    "request_started",
+    "retry",
+    "engine_result",
+    "fallback",
+    "local_started",
+    "engine_failed",
+    "analysis_progress",
+}
 
 
 def append_event(path: Path, event: dict):

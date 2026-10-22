@@ -99,6 +99,7 @@ class Worker:
             input_path=input_path,
             output_path=str(directory / f"{stage}-{new_id()}.json"),
             mode=job.mode,
+            form=job.form,
         )
         env = {
             f"MEETINGLOG_{name.upper()}": str(value)
@@ -173,6 +174,8 @@ class Worker:
                 if speech.no_speech:
                     self.repository.finish(job.id, "succeeded", stage="no_speech")
                     return True
+                self.repository.finish(job.id, "succeeded", stage="transcribed")
+                return True
             current_job = self.repository.raw(job.id)
             transcript = TranscriptRepository(self.db).get(current_job["transcript_id"])
             if not transcript.turns:

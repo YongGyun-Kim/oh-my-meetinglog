@@ -1,5 +1,5 @@
 from meetinglog.db import ApiError, require_recording
-from meetinglog.domain import Transcript, new_id
+from meetinglog.domain import Transcript, group_sentences, new_id
 from meetinglog.transcripts.repository import TranscriptRepository
 
 
@@ -26,14 +26,15 @@ class TranscriptService:
 
             result.created_at = now()
             turns, speakers = (
-                {turn.id: turn for turn in result.turns},
+                {sentence.id: sentence for _, sentence in result.entries()},
                 {speaker.id: speaker for speaker in result.speakers},
             )
             if not changes:
                 raise ApiError("empty_edit", "수정할 내용을 입력하세요")
             for change in changes:
-                if change.get("turn_id"):
-                    turn = turns.get(change["turn_id"])
+                if change.get("sentence_id") or change.get("turn_id"):
+                    sentence_id = change.get("sentence_id") or change["turn_id"]
+                    turn = turns.get(sentence_id)
                     if turn is None:
                         raise ApiError("unknown_turn", "이 기록의 발언이 아닙니다")
                     if "text" in change:
@@ -46,7 +47,14 @@ class TranscriptService:
                             and change["speaker_id"] not in speakers
                         ):
                             raise ApiError("unknown_speaker", "이 기록의 화자가 아닙니다")
-                        turn.speaker_id = change["speaker_id"]
+                        entries = [
+                            (
+                                change["speaker_id"] if sentence.id == sentence_id else speaker_id,
+                                sentence,
+                            )
+                            for speaker_id, sentence in result.entries()
+                        ]
+                        result.turns = group_sentences(entries)
                 elif change.get("speaker_id") in speakers and "role" in change:
                     speakers[change["speaker_id"]].role = change["role"]
                 else:

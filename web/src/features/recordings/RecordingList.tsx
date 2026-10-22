@@ -7,7 +7,11 @@ export function status(record: RecordingSummary) {
   if (record.input_state === "invalid") return "파일 확인 필요";
   if (record.input_state !== "ready") return "저장 미완료";
   if (record.job_state === "succeeded")
-    return record.job_stage === "no_speech" ? "음성 없음" : "정리 완료";
+    return record.job_stage === "no_speech"
+      ? "음성 없음"
+      : record.job_stage === "transcribed"
+        ? "전사 완료"
+        : "정리 완료";
   if (record.job_state === "failed") return "처리 실패";
   if (record.job_state === "cancelled") return "처리 취소";
   if (record.job_state === "running")

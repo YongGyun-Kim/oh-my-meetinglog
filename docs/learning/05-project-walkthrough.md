@@ -43,10 +43,10 @@ flowchart LR
 2. 종료 시 마지막 청크까지 저장했는지 확인한다. 파일 가져오기도 입력 파일을 저장·검사한다.
 3. SQLite에 작업을 등록한다. 워커가 하나씩 가져간다.
 4. 음성 단계의 자식 프로세스가 FFmpeg 변환과 음성 모델을 실행한다.
-5. 전사를 저장한 뒤 분석 단계의 자식 프로세스가 구조화 분석을 실행한다.
+5. 전사는 화자별 턴 안에 문장 목록으로 저장한다. 사용자가 정리 폼을 선택해 요청하면 분석 단계의 자식 프로세스가 구조화 분석을 실행한다.
 6. 웹이 상태를 주기적으로 조회하고, 결과와 원본 재생을 제공한다.
 
-현재 작업은 전사 다음에 분석으로 자동 진행한다. ‘전사만 완료하고 분석은 나중에 선택’하는 모드는 아직 없다. 전사가 저장됐으면 분석 실패 상태에서도 전사 확인과 내보내기는 가능하다.
+현재 초기 작업은 전사까지만 완료한다. 대화 정리 버튼에서 폼을 선택해 분석을 별도로 실행한다. 분석하지 않거나 분석에 실패해도 전사 확인과 내보내기는 가능하다.
 
 코드의 출발점은 [useRecorder.ts](../../web/src/features/recordings/useRecorder.ts), [recordings/api.py](../../backend/src/meetinglog/recordings/api.py), [jobs/runner.py](../../backend/src/meetinglog/jobs/runner.py), [local_executor.py](../../backend/src/meetinglog/engines/local_executor.py)다.
 
@@ -107,7 +107,7 @@ MLX는 Apple Silicon에서 사용할 수 있는 배열·머신러닝 도구다. 
 
 현재 외부 기본 설정은 전사 `gpt-4o-transcribe-diarize`, 분석 `gpt-5-mini`다. **코드에 기록된 기본값**이며 최신 모델 추천이나 현재 계정에서의 사용 가능성 보장이 아니다. 실제 API 연결·비용·품질은 아직 검증하지 않았다.
 
-지금은 하나의 작업 모드가 음성·분석 단계에 함께 적용된다. 기존 전사를 API로 다시 분석하는 경로는 있지만, 새 녹음에서 ‘분석만 외부’로 자유롭게 고르는 설정은 없다. Gemini·Claude·CLI·MCP 연결도 구현되지 않았다.
+전사와 분석은 별도 작업이다. 처리 설정을 변경한 뒤 기존 전사를 다른 모드로 정리할 수 있다. Gemini·Claude·CLI·MCP 연결도 구현되지 않았다.
 
 품질 미검증은 ‘실패를 측정했다’는 뜻이 아니다. 현재 정책은 모델 revision과 평가 보고서가 연결된 품질 상태를 구분한다. [실행 정책](../../backend/src/meetinglog/engines/policy.py)
 

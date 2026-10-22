@@ -1,19 +1,50 @@
 import sys
 import time
+from pathlib import Path
 
 import pytest
 from meetinglog.db import ApiError
 from meetinglog.domain import StageRequest
 
 
-def test_timeout_terminates_sleeping_inference_process(tmp_path):
+def test_completed_analysis_parts_extend_timeout_without_disabling_stall_detection(tmp_path):
     from meetinglog.jobs.process import ProcessRunner
 
     request = StageRequest(
         job_id="j",
         recording_id="r",
         generation=0,
-        stage="speech",
+        stage="analysis",
+        input_path="in",
+        output_path=str(tmp_path / "out.json"),
+        mode="local_only",
+    )
+    script = """
+import json,sys,time
+from pathlib import Path
+output=Path(sys.argv[1])
+for part in range(5):
+    time.sleep(.12)
+    with output.with_suffix('.events.jsonl').open('a') as stream:
+        stream.write(json.dumps({'event':'analysis_progress','completed':part+1,'total':5})+'\\n')
+output.write_text('{}')
+"""
+    runner = ProcessRunner(lambda request: [sys.executable, "-c", script, request.output_path])
+    started = time.monotonic()
+    result = runner.run(request, timeout_s=0.35)
+    assert Path(result.artifact_path).is_file()
+    assert time.monotonic() - started > 0.35
+
+
+@pytest.mark.parametrize("stage", ["speech", "analysis"])
+def test_timeout_terminates_sleeping_inference_process(tmp_path, stage):
+    from meetinglog.jobs.process import ProcessRunner
+
+    request = StageRequest(
+        job_id="j",
+        recording_id="r",
+        generation=0,
+        stage=stage,
         input_path="in",
         output_path=str(tmp_path / "out.json"),
         mode="local_only",

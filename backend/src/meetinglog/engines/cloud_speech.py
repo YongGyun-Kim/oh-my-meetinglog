@@ -2,7 +2,8 @@ from pathlib import Path
 
 from meetinglog.config import Settings
 from meetinglog.db import ApiError
-from meetinglog.domain import Speaker, SpeechResult, Turn, new_id
+from meetinglog.domain import Speaker, SpeechResult, new_id
+from meetinglog.domain import SpeechSegment as Turn
 from meetinglog.recordings.cloud_audio import prepare_uploads, reference_data_url
 from meetinglog.recordings.storage import atomic_json
 

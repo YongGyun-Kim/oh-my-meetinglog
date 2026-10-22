@@ -2,7 +2,7 @@ import json
 from contextlib import nullcontext
 
 from meetinglog.db import ApiError, Database, require_recording
-from meetinglog.domain import Job, Mode, StageResult, new_id, now
+from meetinglog.domain import AnalysisForm, Job, Mode, StageResult, new_id, now
 
 
 def as_job(row) -> Job:
@@ -14,7 +14,13 @@ class JobRepository:
         self.db = db
 
     def enqueue(
-        self, recording_id: str, kind: str, transcript_id: str | None, mode: Mode, connection=None
+        self,
+        recording_id: str,
+        kind: str,
+        transcript_id: str | None,
+        mode: Mode,
+        connection=None,
+        form: AnalysisForm = "meeting",
     ) -> Job:
         with (
             nullcontext(connection) if connection is not None else self.db.session(immediate=True)
@@ -40,12 +46,13 @@ class JobRepository:
                     existing["kind"] == kind
                     and existing["mode"] == mode
                     and existing["transcript_id"] == transcript_id
+                    and existing["form"] == form
                 ):
                     return as_job(existing)
                 raise ApiError("job_active", "이 기록은 이미 처리 중입니다", 409)
             stamp, job_id = now().isoformat(), new_id()
             connection.execute(
-                "INSERT INTO jobs(id,recording_id,transcript_id,kind,state,stage,generation,mode,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO jobs(id,recording_id,transcript_id,kind,state,stage,generation,mode,created_at,updated_at,form) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     job_id,
                     recording_id,
@@ -57,6 +64,7 @@ class JobRepository:
                     mode,
                     stamp,
                     stamp,
+                    form,
                 ),
             )
             return as_job(connection.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone())

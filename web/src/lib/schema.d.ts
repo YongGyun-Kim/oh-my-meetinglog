@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+  "/api/recordings/analysis-forms": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Analysis Forms */
+    get: operations["analysis_forms_api_recordings_analysis_forms_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/recordings": {
     parameters: {
       query?: never;
@@ -274,8 +291,8 @@ export interface components {
       owner_speaker_id: string | null;
       /** Due Text */
       due_text: string | null;
-      /** Evidence Turn Ids */
-      evidence_turn_ids: string[];
+      /** Evidence Sentence Ids */
+      evidence_sentence_ids: string[];
     };
     /** AnalysisBody */
     AnalysisBody: {
@@ -305,6 +322,12 @@ export interface components {
       /** Prompt Version */
       prompt_version: string;
       /**
+       * Form
+       * @default meeting
+       * @enum {string}
+       */
+      form: "meeting" | "interview" | "project";
+      /**
        * Created At
        * Format: date-time
        */
@@ -319,6 +342,11 @@ export interface components {
       mode: "auto" | "local_only" | "api";
       /** Transcript Id */
       transcript_id: string;
+      /**
+       * Form
+       * @enum {string}
+       */
+      form: "meeting" | "interview" | "project";
     };
     /** Body_upload_api_recordings_post */
     Body_upload_api_recordings_post: {
@@ -341,6 +369,8 @@ export interface components {
     };
     /** EditChange */
     EditChange: {
+      /** Sentence Id */
+      sentence_id?: string | null;
       /** Turn Id */
       turn_id?: string | null;
       /** Text */
@@ -377,13 +407,25 @@ export interface components {
     Fact: {
       /** Text */
       text: string;
-      /** Evidence Turn Ids */
-      evidence_turn_ids: string[];
+      /** Evidence Sentence Ids */
+      evidence_sentence_ids: string[];
     };
     /** FinalizeInput */
     FinalizeInput: {
       /** Last Sequence */
       last_sequence: number;
+    };
+    /** FormOption */
+    FormOption: {
+      /**
+       * Id
+       * @enum {string}
+       */
+      id: "meeting" | "interview" | "project";
+      /** Title */
+      title: string;
+      /** Description */
+      description: string;
     };
     /** HTTPValidationError */
     HTTPValidationError: {
@@ -414,6 +456,12 @@ export interface components {
        * @enum {string}
        */
       mode: "auto" | "local_only" | "api";
+      /**
+       * Form
+       * @default meeting
+       * @enum {string}
+       */
+      form: "meeting" | "interview" | "project";
       /**
        * Created At
        * Format: date-time
@@ -570,6 +618,21 @@ export interface components {
       /** Job Stage */
       job_stage?: string | null;
     };
+    /** Sentence */
+    Sentence: {
+      /** Id */
+      id: string;
+      /** Start Ms */
+      start_ms: number;
+      /** End Ms */
+      end_ms: number;
+      /** Text Original */
+      text_original: string;
+      /** Text Edited */
+      text_edited?: string | null;
+      /** Review Flags */
+      review_flags?: string[];
+    };
     /** Speaker */
     Speaker: {
       /** Id */
@@ -588,17 +651,13 @@ export interface components {
     Topic: {
       /** Title */
       title: string;
-      /** Start Ms */
-      start_ms: number;
-      /** End Ms */
-      end_ms: number;
       /** Discussion */
       discussion: components["schemas"]["Fact"][];
       /** Different Views */
       different_views: components["schemas"]["Fact"][];
       conclusion: components["schemas"]["Fact"] | null;
-      /** Evidence Turn Ids */
-      evidence_turn_ids: string[];
+      /** Evidence Sentence Ids */
+      evidence_sentence_ids: string[];
     };
     /** Transcript */
     Transcript: {
@@ -622,20 +681,10 @@ export interface components {
     Turn: {
       /** Id */
       id: string;
-      /** Start Ms */
-      start_ms: number;
-      /** End Ms */
-      end_ms: number;
       /** Speaker Id */
       speaker_id?: string | null;
-      /** Text Original */
-      text_original: string;
-      /** Text Edited */
-      text_edited?: string | null;
-      /** Review Flags */
-      review_flags?: string[];
-      /** Words */
-      words?: components["schemas"]["Word"][];
+      /** Sentences */
+      sentences: components["schemas"]["Sentence"][];
     };
     /** ValidationError */
     ValidationError: {
@@ -650,15 +699,6 @@ export interface components {
       /** Context */
       ctx?: Record<string, never>;
     };
-    /** Word */
-    Word: {
-      /** Text */
-      text: string;
-      /** Start Ms */
-      start_ms: number;
-      /** End Ms */
-      end_ms: number;
-    };
   };
   responses: never;
   parameters: never;
@@ -668,6 +708,26 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+  analysis_forms_api_recordings_analysis_forms_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FormOption"][];
+        };
+      };
+    };
+  };
   list_recordings_api_recordings_get: {
     parameters: {
       query?: never;

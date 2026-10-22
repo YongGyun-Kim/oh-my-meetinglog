@@ -1,4 +1,6 @@
-from meetinglog.domain import AnalysisBody, Speaker, Transcript, Turn
+from meetinglog.domain import AnalysisBody, Speaker, SpeechResult, SpeechSegment, Transcript
+
+Turn = SpeechSegment
 
 
 def transcript_fixture(recording_id="recording"):
@@ -32,9 +34,11 @@ def analysis_fixture():
                 "kind": "interview",
                 "summary": {
                     "text": "서비스 시작 일정을 논의했다.",
-                    "evidence_turn_ids": ["t1", "t2"],
+                    "evidence_sentence_ids": ["t1", "t2"],
                 },
-                "main_topics": [{"text": "서비스 시작 일정", "evidence_turn_ids": ["t1", "t2"]}],
+                "main_topics": [
+                    {"text": "서비스 시작 일정", "evidence_sentence_ids": ["t1", "t2"]}
+                ],
             },
             "topics": [
                 {
@@ -42,21 +46,33 @@ def analysis_fixture():
                     "start_ms": 0,
                     "end_ms": 5000,
                     "discussion": [
-                        {"text": "다음 주 시작을 제안했다.", "evidence_turn_ids": ["t2"]}
+                        {"text": "다음 주 시작을 제안했다.", "evidence_sentence_ids": ["t2"]}
                     ],
                     "different_views": [],
                     "conclusion": None,
-                    "evidence_turn_ids": ["t1", "t2"],
+                    "evidence_sentence_ids": ["t1", "t2"],
                 }
             ],
             "question_answers": [
                 {
-                    "question": {"text": "서비스 시작 시점", "evidence_turn_ids": ["t1"]},
-                    "answer": {"text": "다음 주에 시작한다.", "evidence_turn_ids": ["t2"]},
+                    "question": {"text": "서비스 시작 시점", "evidence_sentence_ids": ["t1"]},
+                    "answer": {"text": "다음 주에 시작한다.", "evidence_sentence_ids": ["t2"]},
                 }
             ],
             "agreements": [],
             "open_questions": [],
             "actions": [],
         }
+    )
+
+
+def as_speech(transcript):
+    return SpeechResult(
+        provider="test",
+        model="fixed",
+        speakers=transcript.speakers,
+        turns=[
+            SpeechSegment(**sentence.model_dump(), speaker_id=speaker_id)
+            for speaker_id, sentence in transcript.entries()
+        ],
     )

@@ -1,6 +1,115 @@
 from tests.api_fixtures import populated_client
 
 
+def test_alac_upload_plays_as_wav_without_changing_original(settings, db, tmp_path):
+    import io
+    import subprocess
+    import wave
+    from pathlib import Path
+
+    from fastapi.testclient import TestClient
+    from meetinglog.app import create_app
+
+    from tests.audio_fixtures import write_silence
+
+    source = write_silence(tmp_path / "source.wav", rate=48000, channels=2)
+    alac = tmp_path / "recording.m4a"
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-i", str(source), "-c:a", "alac", str(alac)], check=True
+    )
+    original = alac.read_bytes()
+    with TestClient(create_app(settings), base_url="http://localhost:8765") as client:
+        response = client.post(
+            "/api/recordings", files={"file": (alac.name, original, "audio/mp4")}
+        )
+        assert response.status_code == 201
+        recording_id = response.json()["id"]
+        playback = client.get(f"/api/recordings/{recording_id}/audio")
+        assert playback.status_code == 200
+        assert playback.headers["content-type"] == "audio/wav"
+        with wave.open(io.BytesIO(playback.content)) as audio:
+            assert (audio.getframerate(), audio.getnchannels(), audio.getnframes()) == (
+                48000,
+                2,
+                48000,
+            )
+        with db.session() as connection:
+            path = connection.execute(
+                "SELECT original_path FROM recordings WHERE id=?", (recording_id,)
+            ).fetchone()[0]
+        assert Path(path).read_bytes() == original
+        assert client.get(f"/api/recordings/{recording_id}/audio").content == playback.content
+        partial = client.get(
+            f"/api/recordings/{recording_id}/audio", headers={"Range": "bytes=0-15"}
+        )
+        assert partial.status_code == 206
+        assert partial.content == playback.content[:16]
+
+
+def test_browser_recording_audio_has_duration_and_preserves_encoded_audio(settings, db, tmp_path):
+    import json
+    import subprocess
+    from pathlib import Path
+
+    from fastapi.testclient import TestClient
+    from meetinglog.app import create_app
+
+    source = Path(__file__).parent / "fixtures" / "browser-fake-mic.webm"
+    original = source.read_bytes()
+    with TestClient(create_app(settings), base_url="http://localhost:8765") as client:
+        recording_id = client.post("/api/recordings/drafts", json={"title": "녹음"}).json()["id"]
+        assert (
+            client.put(f"/api/recordings/{recording_id}/chunks/0", content=original).status_code
+            == 200
+        )
+        assert (
+            client.post(
+                f"/api/recordings/{recording_id}/finalize", json={"last_sequence": 0}
+            ).status_code
+            == 200
+        )
+        response = client.get(f"/api/recordings/{recording_id}/audio")
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "audio/webm"
+        playback = tmp_path / "playback.webm"
+        playback.write_bytes(response.content)
+
+        def metadata(path):
+            return json.loads(
+                subprocess.check_output(
+                    [
+                        "ffprobe",
+                        "-v",
+                        "error",
+                        "-show_packets",
+                        "-show_data_hash",
+                        "sha256",
+                        "-show_entries",
+                        "format=duration:stream=codec_name,sample_rate,channels:packet=data_hash",
+                        "-of",
+                        "json",
+                        str(path),
+                    ]
+                )
+            )
+
+        encoded, served = metadata(source), metadata(playback)
+        assert 1 <= float(served["format"].get("duration", 0)) <= 1.5
+        assert served["streams"] == encoded["streams"]
+        assert served["packets"] == encoded["packets"]
+        with db.session() as connection:
+            stored = connection.execute(
+                "SELECT original_path FROM recordings WHERE id=?", (recording_id,)
+            ).fetchone()
+        assert Path(stored["original_path"]).read_bytes() == original
+        assert client.get(f"/api/recordings/{recording_id}/audio").content == response.content
+        partial = client.get(
+            f"/api/recordings/{recording_id}/audio", headers={"range": "bytes=0-15"}
+        )
+        assert partial.status_code == 206
+        assert partial.content == response.content[:16]
+
+
 def test_recording_list_detail_and_audio_range(settings, db, tmp_path):
     client, record_id, transcript = populated_client(settings, db, tmp_path)
     try:
@@ -69,7 +178,7 @@ def test_edit_marks_analysis_stale_and_exports_do_not_mix_versions(settings, db,
     try:
         response = client.post(
             f"/api/recordings/{record_id}/analyze",
-            json={"mode": "local_only", "transcript_id": transcript.id},
+            json={"mode": "local_only", "transcript_id": transcript.id, "form": "meeting"},
         )
         assert response.status_code == 200
         repo = JobRepository(db)
@@ -96,6 +205,10 @@ def test_edit_marks_analysis_stale_and_exports_do_not_mix_versions(settings, db,
         assert edited.status_code == 200
         assert client.get(f"/api/recordings/{record_id}").json()["analysis_stale"] is True
         assert client.get(f"/api/recordings/{record_id}/export").json()["analysis"] is None
+        markdown = client.get(f"/api/recordings/{record_id}/export?format=markdown").text
+        assert edited.json()["id"] in markdown
+        assert version.id not in markdown
+        assert "서비스 시작 일정을 논의했다." not in markdown
         assert (
             client.get(f"/api/recordings/{record_id}/export?analysis_id={version.id}").status_code
             == 409
