@@ -68,23 +68,21 @@ export function CliConnections({ refreshCount }: { refreshCount: number }) {
 
   const act = async (provider: CliProvider, cancel: boolean) => {
     setBusy(provider);
-    const current = ++revision.current;
+    ++revision.current;
     try {
       const result = await (cancel
         ? api.cancelCliLogin(provider)
         : api.loginCli(provider));
-      if (current === revision.current) {
-        setConnections(
-          (items) =>
-            items?.map((item) =>
-              item.provider === provider ? result : item,
-            ) ?? null,
-        );
-        setError("");
-      }
+      setConnections(
+        (items) =>
+          items?.map((item) => (item.provider === provider ? result : item)) ??
+          null,
+      );
+      setError("");
     } catch (reason) {
-      if (current === revision.current) setError(message(reason));
+      setError(message(reason));
     } finally {
+      ++revision.current;
       setBusy(null);
     }
   };

@@ -104,23 +104,20 @@ class CliAuth:
 
     def start(self, provider: CliProvider) -> CliConnection:
         with self._lock:
-            if provider in self._pending:
-                return CliConnection(provider=provider, state="logging_in")
-        current = self._probe(provider)
-        if current.state == "connected":
-            return current
-        if current.state != "logged_out":
-            raise ApiError(
-                "cli_unavailable",
-                "도구 설치와 로그인 상태를 먼저 확인해 주세요.",
-                status=409,
-            )
-        args = ["login"] if provider == "codex" else ["auth", "login", "--claudeai"]
-        with self._lock:
             if self._closed:
                 raise ApiError("server_stopping", "서버가 종료 중이에요.", status=503)
             if provider in self._pending:
                 return CliConnection(provider=provider, state="logging_in")
+            current = self._probe(provider)
+            if current.state == "connected":
+                return current
+            if current.state != "logged_out":
+                raise ApiError(
+                    "cli_unavailable",
+                    "도구 설치와 로그인 상태를 먼저 확인해 주세요.",
+                    status=409,
+                )
+            args = ["login"] if provider == "codex" else ["auth", "login", "--claudeai"]
             try:
                 process = subprocess.Popen(
                     [shutil.which(provider) or provider, *args],

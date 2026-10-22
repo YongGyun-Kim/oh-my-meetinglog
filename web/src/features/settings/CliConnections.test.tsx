@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { api } from "../../lib/api";
@@ -106,6 +106,42 @@ it("cancels a pending login without logging out an existing account", async () =
   ).toBeEnabled();
   expect(
     within(screen.getByRole("group", { name: "Codex" })).getByText("로그인됨"),
+  ).toBeVisible();
+});
+
+it("keeps a login response when settings are refreshed during the request", async () => {
+  let finishLogin!: (value: unknown) => void;
+  let completed = false;
+  let reads = 0;
+  server((_path, method) => {
+    if (method === "POST")
+      return new Promise((resolve) => {
+        finishLogin = resolve;
+      });
+    reads++;
+    return [
+      connected,
+      completed ? { ...loggedOut, state: "connected" } : loggedOut,
+    ];
+  });
+  render(<SettingsPage />);
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Claude Code 로그인" }),
+  );
+  const beforeRefresh = reads;
+  await userEvent.click(screen.getByRole("button", { name: "새로 확인" }));
+  expect(reads).toBeGreaterThan(beforeRefresh);
+  await act(async () => finishLogin({ ...loggedOut, state: "logging_in" }));
+  expect(
+    await screen.findByRole("button", { name: "Claude Code 로그인 취소" }),
+  ).toBeEnabled();
+  completed = true;
+  expect(
+    await within(screen.getByRole("group", { name: "Claude Code" })).findByText(
+      "로그인됨",
+      {},
+      { timeout: 2500 },
+    ),
   ).toBeVisible();
 });
 

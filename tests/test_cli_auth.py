@@ -2,6 +2,8 @@ import json
 import os
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from threading import Event
 
 import pytest
 from fastapi.testclient import TestClient
@@ -132,6 +134,41 @@ def test_connected_account_is_kept_without_starting_login(client, cli):
     (cli / "codex-connected").touch()
     assert post(client, "codex").json()["state"] == "connected"
     assert not (cli / "calls.jsonl").exists()
+
+
+def test_concurrent_login_does_not_restart_an_account_connected_during_status_check(
+    client, cli, monkeypatch
+):
+    auth = client.app.state.cli_auth
+    probe = auth._probe
+    checking, release = Event(), Event()
+
+    def delayed_probe(provider):
+        result = probe(provider)
+        if not checking.is_set():
+            checking.set()
+            assert release.wait(4)
+        return result
+
+    monkeypatch.setattr(auth, "_probe", delayed_probe)
+    with ThreadPoolExecutor(max_workers=2) as requests:
+        first = requests.submit(post, client, "codex")
+        assert checking.wait(2)
+        second = requests.submit(post, client, "codex")
+        try:
+            try:
+                second.result(timeout=1)
+            except TimeoutError:
+                pass
+            else:
+                (cli / "codex-complete").touch()
+                wait_for(lambda: connection(client, "codex")["state"] == "connected")
+        finally:
+            release.set()
+        assert first.result().status_code == second.result().status_code == 200
+    (cli / "codex-complete").touch()
+    wait_for(lambda: connection(client, "codex")["state"] == "connected")
+    assert len((cli / "calls.jsonl").read_text().splitlines()) == 1
 
 
 def test_login_failure_is_reported_without_cli_output(client, cli):
