@@ -129,7 +129,7 @@ it("keeps a login response when settings are refreshed during the request", asyn
     await screen.findByRole("button", { name: "Claude Code 로그인" }),
   );
   const beforeRefresh = reads;
-  await userEvent.click(screen.getByRole("button", { name: "새로 확인" }));
+  await userEvent.click(screen.getByRole("button", { name: "새로 고침" }));
   expect(reads).toBeGreaterThan(beforeRefresh);
   await act(async () => finishLogin({ ...loggedOut, state: "logging_in" }));
   expect(
@@ -183,7 +183,7 @@ it("refreshes CLI status from the settings page refresh button", async () => {
   render(<SettingsPage />);
   await screen.findByRole("button", { name: "Claude Code 로그인" });
   signedIn = true;
-  await userEvent.click(screen.getByRole("button", { name: "새로 확인" }));
+  await userEvent.click(screen.getByRole("button", { name: "새로 고침" }));
   expect(
     await within(screen.getByRole("group", { name: "Claude Code" })).findByText(
       "로그인됨",

@@ -94,7 +94,7 @@ export default function App() {
             onClick={() => navigate("#settings")}
           >
             <Settings size={18} />
-            처리 설정
+            설정
           </button>
         </nav>
         <div className="sidebar-bottom">
@@ -108,7 +108,7 @@ export default function App() {
         <header className="topbar">
           <span>
             내 기록 <span className="slash">/</span>{" "}
-            {settings ? "처리 설정" : selected ? "대화 기록" : "모든 기록"}
+            {settings ? "설정" : selected ? "대화 기록" : "모든 기록"}
           </span>
           <button
             className="local-badge"
@@ -167,7 +167,7 @@ export default function App() {
                 disabled={recording}
                 onClick={() => navigate("#settings")}
               >
-                <Settings size={13} /> 처리 설정
+                <Settings size={13} /> 설정
               </button>
             </footer>
           </div>

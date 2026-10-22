@@ -1253,38 +1253,6 @@ h1 {
   font-size: 16px;
   margin-bottom: 18px;
 }
-.mode-options {
-  display: grid;
-  gap: 10px;
-}
-.mode-option {
-  display: flex;
-  align-items: flex-start;
-  gap: 13px;
-  padding: 18px 20px;
-  background: white;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  cursor: pointer;
-}
-.mode-option input {
-  accent-color: var(--blue);
-  margin-top: 4px;
-}
-.mode-option strong {
-  font-size: 13px;
-  font-weight: 550;
-}
-.mode-option p {
-  font-size: 11px;
-  color: var(--muted);
-  margin-top: 6px;
-  line-height: 1.8;
-}
-.mode-option.chosen {
-  border-color: #b6c5ff;
-  background: #f7f9ff;
-}
 .left {
   text-align: left;
 }
@@ -1343,9 +1311,17 @@ h1 {
   margin-top: 4px;
   word-break: break-all;
 }
-.quality-label {
-  font-size: 10px;
-  color: #909bad;
+.model-guide {
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 2;
+}
+.model-guide code {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 .settings-section > p {
   font-size: 11px;
@@ -1485,16 +1461,10 @@ h1 {
   .settings-section {
     margin-top: 27px;
   }
-  .mode-option {
-    padding: 16px 14px;
-  }
   .engine-row {
     gap: 10px;
     padding: 15px 12px;
     flex-wrap: wrap;
-  }
-  .quality-label {
-    font-size: 9px;
   }
   .engine-row .status {
     font-size: 9px;

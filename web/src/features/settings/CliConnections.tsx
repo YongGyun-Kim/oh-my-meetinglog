@@ -89,7 +89,7 @@ export function CliConnections({ refreshCount }: { refreshCount: number }) {
 
   return (
     <section className="settings-section">
-      <h2>정리 도구 로그인</h2>
+      <h2>대화 분석 모델</h2>
       <p>
         서버 컴퓨터에서 로그인 창이 열려요. 같은 컴퓨터의 브라우저에서 완료해
         주세요.

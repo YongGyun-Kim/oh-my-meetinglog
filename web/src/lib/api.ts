@@ -122,8 +122,6 @@ export const api = {
       `/settings/cli-connections/${provider}/cancel`,
       json("POST", {}),
     ),
-  updateMode: (mode: Mode) =>
-    request<Readiness>("/settings", json("PATCH", { mode })),
   process: (id: string, mode: Mode) =>
     request<Job>(`${path(id)}/process`, json("POST", { mode })),
   analyze: (id: string, transcriptId: string, mode: Mode, form: AnalysisForm) =>

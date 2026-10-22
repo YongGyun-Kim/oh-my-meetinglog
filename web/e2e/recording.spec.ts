@@ -37,7 +37,7 @@ test("connects CLI accounts from settings on desktop and mobile", async ({
   });
   await page.goto("/#settings");
   await expect(
-    page.getByRole("heading", { name: "정리 도구 로그인" }),
+    page.getByRole("heading", { name: "대화 분석 모델" }),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Codex 로그인", exact: true }),
