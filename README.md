@@ -24,8 +24,6 @@
 - 필요할 때 정리 내용의 근거 발언 확인
 - 전사와 정리 결과를 Markdown·JSON으로 내보내 에이전트에 전달
 
-현재 대화 분석은 Ollama를 사용한다. Codex·Claude Code는 **설정 → 대화 분석 모델**에서 로그인만 지원하며, 분석 실행과 MCP 연결은 아직 지원하지 않는다.
-
 ## 빠른 시작
 
 로컬 음성 모델은 **Apple Silicon Mac**을 대상으로 한다. Python 3.12, Node.js 22.12 이상이 필요하며 브라우저는 Chrome을 기준으로 확인했다. 최소 메모리 요구량은 아직 확인하지 않았다.
@@ -37,12 +35,12 @@ Homebrew를 사용하는 경우 아래 명령을 실행한다.
 ```bash
 git clone https://github.com/YongGyun-Kim/oh-my-meetinglog.git
 cd oh-my-meetinglog
-brew install uv node ffmpeg ollama
+brew install uv node ffmpeg
 uv sync --extra speech
 npm --prefix web ci
 ```
 
-### 2. 모델 다운로드
+### 2. 음성 모델 다운로드
 
 | 용도           | 모델                                                                                                  |
 | -------------- | ----------------------------------------------------------------------------------------------------- |
@@ -50,7 +48,31 @@ npm --prefix web ci
 | 전사           | [Qwen3-ASR 1.7B · 8bit](https://huggingface.co/mlx-community/Qwen3-ASR-1.7B-8bit)                     |
 | 발언 시간 정렬 | [Qwen3 ForcedAligner 0.6B · 8bit](https://huggingface.co/mlx-community/Qwen3-ForcedAligner-0.6B-8bit) |
 | 화자 구분      | [Nemotron 3 Diarization](https://huggingface.co/mlx-community/Nemotron-3-Diarization)                 |
-| 대화 분석      | [gpt-oss:20b · Ollama](https://ollama.com/library/gpt-oss)                                            |
+
+음성 모델은 파일만 수동으로 내려받지 말고, 프로젝트 폴더에서 아래 명령으로 준비한다. 시간 정렬 모델은 문장별 재생 위치와 화자 연결에 사용한다.
+
+```bash
+uv run --no-sync meetinglog prepare-models
+```
+
+최초 다운로드에는 인터넷 연결과 수 GB 이상의 저장 공간이 필요하다.
+
+### 3. 대화 분석
+
+음성 전사와 별도로 Codex·Claude Code를 사용하거나, Ollama로 로컬 모델을 실행해 대화를 분석할 수 있다.
+
+| 방식                                                                                                     | 사용 방법                                                                                                         |
+| -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| [Codex](https://learn.chatgpt.com/docs/codex/cli) · [Claude Code](https://code.claude.com/docs/en/setup) | 내보낸 Markdown·JSON을 읽혀 분석한다. 앱에서는 로그인만 지원하며 CLI 분석 실행과 MCP 연결은 아직 지원하지 않는다. |
+| 로컬 모델                                                                                                | Ollama를 통해 앱에서 대화 분석을 실행한다. 기본 모델은 [gpt-oss:20b](https://ollama.com/library/gpt-oss)다.       |
+
+Codex·Claude Code 로그인은 **설정 → 대화 분석 모델**에서 진행한다.
+
+로컬에서 분석하려면 [Ollama를 다운로드](https://ollama.com/download)하거나 Homebrew로 설치한다.
+
+```bash
+brew install ollama
+```
 
 Ollama 앱이나 서버를 실행한다. 실행 중인 서버가 없다면 별도 터미널에서 시작한다.
 
@@ -58,16 +80,13 @@ Ollama 앱이나 서버를 실행한다. 실행 중인 서버가 없다면 별�
 ollama serve
 ```
 
-프로젝트 폴더의 다른 터미널에서 모델을 다운로드한다. 음성 모델은 파일만 수동으로 내려받지 말고 아래 명령으로 준비한다.
+다른 터미널에서 분석 모델을 다운로드한다.
 
 ```bash
 ollama pull gpt-oss:20b
-uv run --no-sync meetinglog prepare-models
 ```
 
-최초 다운로드에는 인터넷 연결과 수 GB 이상의 저장 공간이 필요하다.
-
-### 3. 실행
+### 4. 실행
 
 ```bash
 bash scripts/dev.sh
@@ -75,7 +94,7 @@ bash scripts/dev.sh
 
 [http://127.0.0.1:5173](http://127.0.0.1:5173)을 연다. 웹·API·워커가 함께 실행되며, **설정 → 로컬 엔진 준비 상태**에서 모델 준비 여부를 확인할 수 있다.
 
-녹음하거나 파일을 가져온 뒤 전사를 확인한다. **대화 정리**에서 폼을 고르고 **정리 시작**을 누르면 분석을 실행한다.
+녹음하거나 파일을 가져온 뒤 전사를 확인한다. Ollama를 준비했다면 **대화 정리**에서 폼을 고르고 **정리 시작**을 눌러 분석한다. Codex·Claude Code를 사용하려면 기록을 내보내 해당 도구에 전달한다.
 
 현재는 서버 컴퓨터에서 접속하는 로컬 실행을 기준으로 한다. 원본 음성·전사·정리 결과는 `data/`, 음성 모델은 `models/`에 저장하며 두 경로는 Git에서 제외한다.
 
