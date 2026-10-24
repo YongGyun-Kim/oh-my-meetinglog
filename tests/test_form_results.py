@@ -138,12 +138,14 @@ def test_external_owner_and_due_date_must_be_supported_by_action_evidence():
         validate_grounding(body, transcript)
 
 
-def test_local_provider_requests_new_form_contract(settings):
+@pytest.mark.parametrize("model", ["gpt-oss:20b", "qwen3:8b"])
+def test_local_provider_requests_new_form_contract(settings, model):
     from meetinglog.analysis.input import prepare_input
     from meetinglog.engines.local_analysis import LocalAnalysis
 
     def handler(request):
         payload = json.loads(request.content)
+        assert payload.get("think") == ("low" if model == "gpt-oss:20b" else None)
         assert set(payload["format"]["properties"]) == {"sections"}
         assert "요구사항 협의" in payload["messages"][1]["content"]
         assert "start_ms" not in payload["messages"][1]["content"]
@@ -153,6 +155,7 @@ def test_local_provider_requests_new_form_contract(settings):
         )
 
     client = httpx.Client(base_url="http://127.0.0.1:11434", transport=httpx.MockTransport(handler))
+    settings = settings.model_copy(update={"ollama_model": model})
     result = LocalAnalysis(settings, client, form="project").generate(
         prepare_input(transcript_fixture())[0]
     )
@@ -291,3 +294,67 @@ def test_merge_prompt_refuses_oversized_results():
     with pytest.raises(ApiError) as error:
         merge_messages([body, body], "meeting")
     assert error.value.code == "context_limit"
+
+
+def test_merge_cannot_cite_source_omitted_from_its_input(monkeypatch):
+    from meetinglog.analysis import service
+    from meetinglog.domain import FormAnalysisBody
+
+    transcript = transcript_fixture()
+    extra = transcript.turns[0].sentences[0].model_copy(update={"id": "uncited"})
+    transcript.turns[0].sentences.append(extra)
+    monkeypatch.setattr(service, "chunk_input", lambda data, form: [data, data])
+    feedbacks = []
+
+    class Engine:
+        def generate(self, part, feedback=None):
+            return FormAnalysisBody.model_validate(form_data(ids=["t1"]))
+
+        def merge(self, bodies, feedback=None):
+            feedbacks.append(feedback)
+            return FormAnalysisBody.model_validate(
+                form_data(ids=["t2" if feedback is None else "t1"])
+            )
+
+    result = service.analyze_with(Engine(), transcript)
+    assert len(feedbacks) == 2
+    assert result.sections[0].groups[0].paragraphs[0].evidence_sentence_ids == ["t1"]
+
+
+def test_blank_action_is_rejected_for_model_retry():
+    from meetinglog.analysis.grounding import GroundingError, validate_grounding
+    from meetinglog.domain import AnalysisSection, FormAction, FormAnalysisBody
+
+    body = FormAnalysisBody(
+        sections=[
+            AnalysisSection(
+                title="후속 조치",
+                actions=[
+                    FormAction(
+                        text="  ",
+                        owner_speaker_id=None,
+                        due_text=None,
+                        evidence_sentence_ids=["t2"],
+                    )
+                ],
+            )
+        ]
+    )
+    with pytest.raises(GroundingError, match="분석"):
+        validate_grounding(body, transcript_fixture())
+
+
+def test_markdown_separates_paragraphs():
+    from meetinglog.exports import Exporter
+
+    body = form_data()
+    body["sections"][0]["groups"][0]["paragraphs"] = [
+        {"text": "첫 문단", "evidence_sentence_ids": ["t1"]},
+        {"text": "둘째 문단", "evidence_sentence_ids": ["t2"]},
+    ]
+    payload = {
+        "recording": {"id": "r", "title": "기록", "created_at": "now"},
+        "transcript": transcript_fixture().model_dump(),
+        "analysis": {"id": "a", "transcript_id": "t", "form": "meeting", "body": body},
+    }
+    assert "첫 문단 (근거: t1)\n\n둘째 문단" in Exporter.markdown(payload)

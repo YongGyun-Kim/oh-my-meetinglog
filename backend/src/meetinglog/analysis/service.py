@@ -69,8 +69,22 @@ def analyze_with(
             if len(pair) == 1:
                 merged.append(pair[0])
                 continue
+            references = {
+                identifier
+                for body in pair
+                for section in body.sections
+                for fact in [
+                    *[fact for group in section.groups for fact in group.paragraphs],
+                    *[fact for choice in section.comparisons for fact in choice.points],
+                    *section.actions,
+                ]
+                for identifier in fact.evidence_sentence_ids
+            }
+            evidence = transcript.model_copy(
+                update={"lines": [line for line in transcript.lines if line.id in references]}
+            )
             merged.append(
-                checked(lambda feedback, pair=pair: engine.merge(pair, feedback), transcript)
+                checked(lambda feedback, pair=pair: engine.merge(pair, feedback), evidence)
             )
             completed += 1
             if progress:

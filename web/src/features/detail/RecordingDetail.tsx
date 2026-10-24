@@ -360,7 +360,7 @@ export function RecordingDetail({
               <p>
                 {detail.job?.stage === "no_speech"
                   ? "음성이 있는 파일인지 확인해 주세요."
-                  : "대화 정리를 누르고 정리할 폼을 선택해 주세요."}
+                  : "대화 정리를 누르고 정리할 양식을 선택해 주세요."}
               </p>
             </div>
           )}

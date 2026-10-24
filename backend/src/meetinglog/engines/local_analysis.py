@@ -47,6 +47,8 @@ class LocalAnalysis:
                         "messages": input_messages,
                         "format": schema.model_json_schema(),
                         "stream": False,
+                        # Leave room for the result within the shared reasoning/output budget.
+                        **({"think": "low"} if self.model.split(":")[0] == "gpt-oss" else {}),
                         "keep_alive": "5m",
                         "options": {"num_ctx": 32768, "temperature": 0, "num_predict": 4096},
                     },

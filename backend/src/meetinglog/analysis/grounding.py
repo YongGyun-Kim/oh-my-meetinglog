@@ -41,6 +41,11 @@ def validate_grounding(
 
     visit(body.model_dump())
     for action in body.actions:
+        if isinstance(body, FormAnalysisBody) and not action.text.strip():
+            raise GroundingError(
+                "empty_action",
+                "actions의 text에는 수행할 행동을 반드시 적는다. owner_text에는 담당자 이름·역할만 적는다.",
+            )
         if action.owner_speaker_id is not None and action.owner_speaker_id not in speakers:
             raise GroundingError("unknown_speaker")
         owner = getattr(action, "owner_text", None)

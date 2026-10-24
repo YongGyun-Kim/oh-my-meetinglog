@@ -146,7 +146,8 @@ class Exporter:
                 for group in section["groups"]:
                     if group["title"]:
                         lines += [f"### {clean(group['title'])}", ""]
-                    lines += [fact(item) for item in group["paragraphs"]] + [""]
+                    for item in group["paragraphs"]:
+                        lines += [fact(item), ""]
                 if section["comparisons"]:
                     lines += ["| 선택지 | 검토 내용 |", "| --- | --- |"]
                     for choice in section["comparisons"]:
