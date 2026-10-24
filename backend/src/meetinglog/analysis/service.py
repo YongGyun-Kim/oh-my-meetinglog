@@ -1,20 +1,19 @@
-import json
 from pathlib import Path
 from typing import Protocol
 
 from meetinglog.analysis.chunking import chunk_input
+from meetinglog.analysis.forms import canonicalize
 from meetinglog.analysis.grounding import GroundingError, validate_grounding
 from meetinglog.analysis.input import AnalysisInput, prepare_input
 from meetinglog.analysis.prompts import PROMPT_VERSION
 from meetinglog.config import Settings
 from meetinglog.db import ApiError, Database
 from meetinglog.domain import (
-    AnalysisBody,
     AnalysisForm,
     AnalysisVersion,
+    FormAnalysisBody,
     Job,
     Mode,
-    Overview,
     Transcript,
     new_id,
 )
@@ -26,83 +25,64 @@ class AnalysisEngine(Protocol):
     provider: str
     model: str
 
-    def generate(self, transcript: AnalysisInput, feedback: str | None = None) -> AnalysisBody: ...
-    def summarize(self, overviews: list[Overview]) -> Overview: ...
-
-
-def unique(values):
-    seen, result = set(), []
-    for value in values:
-        key = json.dumps(value.model_dump(), sort_keys=True, ensure_ascii=False)
-        if key not in seen:
-            result.append(value)
-            seen.add(key)
-    return result
+    def generate(
+        self, transcript: AnalysisInput, feedback: str | None = None
+    ) -> FormAnalysisBody: ...
+    def merge(
+        self, bodies: list[FormAnalysisBody], feedback: str | None = None
+    ) -> FormAnalysisBody: ...
 
 
 def analyze_with(
     engine: AnalysisEngine, transcript: Transcript, progress=None, form: AnalysisForm = "meeting"
-) -> AnalysisBody:
+) -> FormAnalysisBody:
     source = transcript
-    transcript, turn_ids, speaker_ids = prepare_input(source)
+    transcript, sentence_ids, speaker_ids = prepare_input(source)
     parts = chunk_input(transcript, form=form)
     if not parts:
         raise ApiError("no_speech", "분석할 발언이 없습니다", 409)
-    bodies = []
-    for part in parts:
+
+    def checked(produce, evidence):
         feedback = None
         for attempt in range(2):
-            body = engine.generate(part, feedback)
+            body = produce(feedback)
             try:
-                validate_grounding(body, part)
-                break
+                body = canonicalize(body, form, final=False)
+                validate_grounding(body, evidence)
+                return body
             except GroundingError as error:
                 if attempt:
                     raise
                 feedback = error.feedback
-        bodies.append(body)
+
+    bodies = []
+    completed, total = 0, 2 * len(parts) - 1
+    for part in parts:
+        bodies.append(checked(lambda feedback, part=part: engine.generate(part, feedback), part))
+        completed += 1
         if progress:
-            progress(len(bodies), len(parts))
-    overviews = [body.overview for body in bodies]
-    while len(overviews) > 1:
-        groups, group, size = [], [], 0
-        for overview in overviews:
-            encoded = len(overview.model_dump_json().encode())
-            if encoded > 14000:
-                raise ApiError("context_limit", "구간 요약이 입력 한도를 초과했습니다", 503)
-            if group and size + encoded > 14000:
-                groups.append(group)
-                group, size = [], 0
-            group.append(overview)
-            size += encoded
-        if group:
-            groups.append(group)
-        if all(len(group) == 1 for group in groups):
-            raise ApiError("context_limit", "전체 요약을 안전한 입력 크기로 합치지 못했습니다", 503)
-        overviews = []
-        for group in groups:
-            overviews.append(engine.summarize(group) if len(group) > 1 else group[0])
-            if progress and len(group) > 1:
-                progress(len(parts), len(parts))
-    order = {line.id: index for index, line in enumerate(transcript.lines)}
-    merged = AnalysisBody(
-        overview=overviews[0],
-        topics=sorted(
-            unique([topic for body in bodies for topic in body.topics]),
-            key=lambda topic: min(order[identifier] for identifier in topic.evidence_sentence_ids),
-        ),
-        question_answers=unique([item for body in bodies for item in body.question_answers]),
-        agreements=unique([item for body in bodies for item in body.agreements]),
-        open_questions=unique([item for body in bodies for item in body.open_questions]),
-        actions=unique([item for body in bodies for item in body.actions]),
-    )
-    validate_grounding(merged, transcript)
+            progress(completed, total)
+    while len(bodies) > 1:
+        merged = []
+        for index in range(0, len(bodies), 2):
+            pair = bodies[index : index + 2]
+            if len(pair) == 1:
+                merged.append(pair[0])
+                continue
+            merged.append(
+                checked(lambda feedback, pair=pair: engine.merge(pair, feedback), transcript)
+            )
+            completed += 1
+            if progress:
+                progress(completed, total)
+        bodies = merged
+    result = canonicalize(bodies[0], form)
 
     def restore(value):
         if isinstance(value, dict):
             if "evidence_sentence_ids" in value:
                 value["evidence_sentence_ids"] = [
-                    turn_ids[identifier] for identifier in value["evidence_sentence_ids"]
+                    sentence_ids[identifier] for identifier in value["evidence_sentence_ids"]
                 ]
             if value.get("owner_speaker_id") is not None:
                 value["owner_speaker_id"] = speaker_ids[value["owner_speaker_id"]]
@@ -112,9 +92,9 @@ def analyze_with(
             for child in value:
                 restore(child)
 
-    data = merged.model_dump()
+    data = result.model_dump()
     restore(data)
-    result = AnalysisBody.model_validate(data)
+    result = FormAnalysisBody.model_validate(data)
     validate_grounding(result, source)
     return result
 
@@ -211,6 +191,8 @@ class AnalysisService:
             if existing:
                 return AnalysisVersion.model_validate_json(existing[0])
             transcript = TranscriptRepository(self.db).read(connection, version.transcript_id)
+            if isinstance(version.body, FormAnalysisBody):
+                version.body = canonicalize(version.body, version.form)
             validate_grounding(version.body, transcript)
             connection.execute(
                 "INSERT INTO analyses VALUES (?,?,?,?,?,?)",

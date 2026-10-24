@@ -2,10 +2,10 @@ import httpx
 from pydantic import BaseModel, ValidationError
 
 from meetinglog.analysis.input import AnalysisInput
-from meetinglog.analysis.prompts import messages, summary_messages
+from meetinglog.analysis.prompts import merge_messages, messages
 from meetinglog.config import Settings
 from meetinglog.db import ApiError
-from meetinglog.domain import AnalysisBody, AnalysisForm, Overview
+from meetinglog.domain import AnalysisForm, FormAnalysisBody
 from meetinglog.engines.policy import loopback_url
 
 
@@ -71,11 +71,13 @@ class LocalAnalysis:
                 "ollama_unavailable", "Ollama와 gpt-oss:20b 실행 상태를 확인하세요", 503
             ) from None
 
-    def generate(self, transcript: AnalysisInput, feedback: str | None = None) -> AnalysisBody:
-        return self._request(AnalysisBody, messages(transcript, feedback, self.form))
+    def generate(self, transcript: AnalysisInput, feedback: str | None = None) -> FormAnalysisBody:
+        return self._request(FormAnalysisBody, messages(transcript, feedback, self.form))
 
-    def summarize(self, overviews: list[Overview]) -> Overview:
-        return self._request(Overview, summary_messages(overviews, self.form))
+    def merge(
+        self, bodies: list[FormAnalysisBody], feedback: str | None = None
+    ) -> FormAnalysisBody:
+        return self._request(FormAnalysisBody, merge_messages(bodies, self.form, feedback))
 
     def digest(self) -> str | None:
         try:

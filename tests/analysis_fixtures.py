@@ -76,3 +76,68 @@ def as_speech(transcript):
             for speaker_id, sentence in transcript.entries()
         ],
     )
+
+
+def form_analysis_fixture(form="meeting"):
+    from meetinglog.domain import AnalysisSection, Fact, FormAnalysisBody, ParagraphGroup
+
+    first, second, actions = {
+        "meeting": ("회의 결과", "안건별 논의", "후속 조치"),
+        "project": ("목표", "요구사항", "후속 조치"),
+        "decision": ("결정 결과", "판단 기준", "후속 조치"),
+        "progress": ("현재 상태", "진행 중인 일", "다음 할 일"),
+        "interview": ("사용자 상황", "경험과 문제", "후속 조치"),
+    }[form]
+    body = FormAnalysisBody(
+        sections=[
+            AnalysisSection(
+                title=first,
+                groups=[
+                    ParagraphGroup(
+                        title=None,
+                        paragraphs=[
+                            Fact(
+                                text="서비스 시작 일정을 논의했다.",
+                                evidence_sentence_ids=["t1", "t2"],
+                            )
+                        ],
+                    )
+                ],
+            ),
+            AnalysisSection(
+                title=second,
+                groups=[
+                    ParagraphGroup(
+                        title="서비스 시작",
+                        paragraphs=[Fact(text="다음 주에 시작한다.", evidence_sentence_ids=["t2"])],
+                    )
+                ],
+            ),
+            AnalysisSection(title=actions),
+        ]
+    )
+
+    if form == "decision":
+        from meetinglog.domain import OptionComparison
+
+        body.sections.insert(
+            2,
+            AnalysisSection(
+                title="선택지 비교",
+                comparisons=[
+                    OptionComparison(
+                        option="다음 주 시작",
+                        points=[Fact(text="빠르게 시작하는 안이다.", evidence_sentence_ids=["t2"])],
+                    ),
+                    OptionComparison(
+                        option="일정 추가 검토",
+                        points=[
+                            Fact(
+                                text="시작 시점을 더 검토하는 안이다.", evidence_sentence_ids=["t1"]
+                            )
+                        ],
+                    ),
+                ],
+            ),
+        )
+    return body

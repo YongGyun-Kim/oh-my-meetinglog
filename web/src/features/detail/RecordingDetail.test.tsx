@@ -62,6 +62,8 @@ it("preserves an edit draft after a version conflict", async () => {
 
 it("renders model content as text and leaves absent facts absent", async () => {
   const detail = structuredClone(detailFixture);
+  if (!("overview" in detail.analysis!.body))
+    throw new Error("Expected legacy fixture");
   detail.analysis!.body.overview.summary.text = "<img src=x onerror=alert(1)>";
   const view = renderDetailWithFixture(detail);
   await waitFor(() =>
@@ -73,26 +75,29 @@ it("renders model content as text and leaves absent facts absent", async () => {
   expect(screen.queryByText("담당자 미정")).not.toBeInTheDocument();
 });
 
-it("opens form selection without analysis and submits the chosen form", async () => {
-  vi.spyOn(api, "analyze").mockResolvedValue({} as never);
-  renderDetailWithFixture();
-  await userEvent.click(
-    await screen.findByRole("button", { name: "다시 정리" }),
-  );
-  expect(api.analyze).not.toHaveBeenCalled();
-  const choice = await screen.findByLabelText("정리 폼");
-  await userEvent.selectOptions(choice, "project");
-  expect(api.analyze).not.toHaveBeenCalled();
-  await userEvent.click(screen.getByRole("button", { name: "정리 시작" }));
-  await waitFor(() =>
-    expect(api.analyze).toHaveBeenCalledWith(
-      "rec-1",
-      "v1",
-      "local_only",
-      "project",
-    ),
-  );
-});
+it.each(["project", "decision", "progress"])(
+  "submits the selected %s form only after starting analysis",
+  async (form) => {
+    vi.spyOn(api, "analyze").mockResolvedValue({} as never);
+    renderDetailWithFixture();
+    await userEvent.click(
+      await screen.findByRole("button", { name: "다시 정리" }),
+    );
+    expect(api.analyze).not.toHaveBeenCalled();
+    const choice = await screen.findByLabelText("정리 양식");
+    await userEvent.selectOptions(choice, form);
+    expect(api.analyze).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "정리 시작" }));
+    await waitFor(() =>
+      expect(api.analyze).toHaveBeenCalledWith(
+        "rec-1",
+        "v1",
+        "local_only",
+        form,
+      ),
+    );
+  },
+);
 
 it("seeks the clicked sentence inside a shared speaker turn", async () => {
   const detail = structuredClone(detailFixture);

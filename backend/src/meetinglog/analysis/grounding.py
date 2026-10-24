@@ -3,7 +3,7 @@ import re
 
 from meetinglog.analysis.input import AnalysisInput
 from meetinglog.db import ApiError
-from meetinglog.domain import AnalysisBody, Transcript
+from meetinglog.domain import AnalysisBody, FormAnalysisBody, Transcript
 
 
 class GroundingError(ApiError):
@@ -12,7 +12,9 @@ class GroundingError(ApiError):
         self.feedback = feedback or code
 
 
-def validate_grounding(body: AnalysisBody, transcript: Transcript | AnalysisInput) -> None:
+def validate_grounding(
+    body: AnalysisBody | FormAnalysisBody, transcript: Transcript | AnalysisInput
+) -> None:
     turns = (
         {
             sentence.id: sentence.text_edited
@@ -41,6 +43,19 @@ def validate_grounding(body: AnalysisBody, transcript: Transcript | AnalysisInpu
     for action in body.actions:
         if action.owner_speaker_id is not None and action.owner_speaker_id not in speakers:
             raise GroundingError("unknown_speaker")
+        owner = getattr(action, "owner_text", None)
+        if owner is not None:
+            if action.owner_speaker_id is not None:
+                raise GroundingError(
+                    "ambiguous_owner",
+                    "담당자는 owner_text 또는 owner_speaker_id 중 하나로만 기록한다.",
+                )
+            evidence = "".join(turns[item] for item in action.evidence_sentence_ids)
+            if not owner.strip() or re.sub(r"\s+", "", owner) not in re.sub(r"\s+", "", evidence):
+                raise GroundingError(
+                    "unspoken_owner",
+                    "owner_text는 근거 발언에 나온 담당자 표현을 그대로 사용하거나 null로 둔다.",
+                )
         if action.due_text:
             evidence = "".join(turns[item] for item in action.evidence_sentence_ids)
             if re.sub(r"\s+", "", action.due_text) not in re.sub(r"\s+", "", evidence):

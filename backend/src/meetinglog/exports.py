@@ -2,7 +2,7 @@ import html
 import json
 
 from meetinglog.db import ApiError, Database, require_recording
-from meetinglog.domain import AnalysisVersion
+from meetinglog.domain import AnalysisVersion, FormAnalysisBody
 from meetinglog.recordings.service import as_recording
 from meetinglog.transcripts.repository import TranscriptRepository
 
@@ -81,7 +81,9 @@ class Exporter:
             )
             history = processing_history(connection, recording_id)
             return {
-                "schema_version": 2,
+                "schema_version": 3
+                if analysis and isinstance(analysis.body, FormAnalysisBody)
+                else 2,
                 "recording": as_recording(record).model_dump(mode="json"),
                 "transcript": transcript.model_dump(mode="json"),
                 "analysis": analysis.model_dump(mode="json") if analysis else None,
@@ -136,7 +138,36 @@ class Exporter:
         def fact(item):
             return f"{clean(item['text'])} (근거: {', '.join(item['evidence_sentence_ids'])})"
 
-        if analysis:
+        if analysis and "sections" in analysis["body"]:
+            for section in analysis["body"]["sections"]:
+                lines += [f"## {clean(section['title'])}", ""]
+                if not (section["groups"] or section["comparisons"] or section["actions"]):
+                    lines += ["언급 없음", ""]
+                for group in section["groups"]:
+                    if group["title"]:
+                        lines += [f"### {clean(group['title'])}", ""]
+                    lines += [fact(item) for item in group["paragraphs"]] + [""]
+                if section["comparisons"]:
+                    lines += ["| 선택지 | 검토 내용 |", "| --- | --- |"]
+                    for choice in section["comparisons"]:
+                        label = clean(choice["option"]).replace("|", "\\|").replace("\n", "<br>")
+                        points = (
+                            "<br>".join(fact(item) for item in choice["points"])
+                            .replace("|", "\\|")
+                            .replace("\n", "<br>")
+                        )
+                        lines.append(f"| {label} | {points} |")
+                    lines.append("")
+                for action in section["actions"]:
+                    owner = action.get("owner_text") or speakers.get(
+                        action["owner_speaker_id"], "미지정"
+                    )
+                    lines.append(
+                        f"- {fact(action)} / 담당: {clean(owner)} / 기한: {clean(action['due_text'] or '미지정')}"
+                    )
+                if section["actions"]:
+                    lines.append("")
+        elif analysis:
             body = analysis["body"]
             lines += ["## 전체 요약", "", fact(body["overview"]["summary"]), ""]
             for topic in body["topics"]:

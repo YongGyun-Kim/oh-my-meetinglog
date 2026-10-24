@@ -48,11 +48,11 @@ export function AnalysisFormDialog({
           }
         }}
       >
-        <h2 id="analysis-form-title">어떤 폼으로 정리할까요?</h2>
+        <h2 id="analysis-form-title">어떤 양식으로 정리할까요?</h2>
         <label className="analysis-form-choice">
-          정리 폼
+          정리 양식
           <select
-            aria-label="정리 폼"
+            aria-label="정리 양식"
             value={form}
             disabled={busy}
             onChange={(event) => setForm(event.target.value as AnalysisForm)}
@@ -67,7 +67,14 @@ export function AnalysisFormDialog({
         <p className="muted">
           {forms.find((option) => option.id === form)?.description}
         </p>
-        <p className="muted">선택한 폼으로 대화 내용을 새로 정리해요.</p>
+        <ol className="form-preview" aria-label="정리할 항목">
+          {forms
+            .find((option) => option.id === form)
+            ?.sections.map((section) => (
+              <li key={section}>{section}</li>
+            ))}
+        </ol>
+        <p className="muted">선택한 양식으로 대화 내용을 새로 정리해요.</p>
         <div className="editor-actions">
           <button
             className="button secondary"

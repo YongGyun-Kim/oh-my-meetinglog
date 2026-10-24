@@ -1,8 +1,8 @@
 from meetinglog.analysis.input import AnalysisInput
-from meetinglog.analysis.prompts import messages, summary_messages
+from meetinglog.analysis.prompts import merge_messages, messages
 from meetinglog.config import Settings
 from meetinglog.db import ApiError
-from meetinglog.domain import AnalysisBody, AnalysisForm, Overview
+from meetinglog.domain import AnalysisForm, FormAnalysisBody
 
 
 class CloudAnalysis:
@@ -41,8 +41,10 @@ class CloudAnalysis:
                 "upstream_network", "외부 분석 서비스에 연결하지 못했습니다", 503, True
             ) from None
 
-    def generate(self, transcript: AnalysisInput, feedback: str | None = None) -> AnalysisBody:
-        return self._request(AnalysisBody, messages(transcript, feedback, self.form))
+    def generate(self, transcript: AnalysisInput, feedback: str | None = None) -> FormAnalysisBody:
+        return self._request(FormAnalysisBody, messages(transcript, feedback, self.form))
 
-    def summarize(self, overviews: list[Overview]) -> Overview:
-        return self._request(Overview, summary_messages(overviews, self.form))
+    def merge(
+        self, bodies: list[FormAnalysisBody], feedback: str | None = None
+    ) -> FormAnalysisBody:
+        return self._request(FormAnalysisBody, merge_messages(bodies, self.form, feedback))

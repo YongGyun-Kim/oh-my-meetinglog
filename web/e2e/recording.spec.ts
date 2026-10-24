@@ -101,9 +101,11 @@ test("imports, edits, reanalyzes, seeks, exports and retains a conversation", as
     buffer: wav(),
   });
   await page.getByRole("button", { name: "대화 정리", exact: true }).click();
-  await page.getByLabel("정리 폼", { exact: true }).selectOption("interview");
+  await page.getByLabel("정리 양식", { exact: true }).selectOption("interview");
   await page.getByRole("button", { name: "정리 시작", exact: true }).click();
-  await expect(page.getByText("대화 개요", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "사용자 상황", exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByText("언제 서비스를 시작할까요?", { exact: true }),
   ).toBeVisible();
@@ -127,7 +129,7 @@ test("imports, edits, reanalyzes, seeks, exports and retains a conversation", as
     .getByRole("button", { name: "다시 정리", exact: true })
     .last()
     .click();
-  await page.getByLabel("정리 폼", { exact: true }).selectOption("project");
+  await page.getByLabel("정리 양식", { exact: true }).selectOption("project");
   await page.getByRole("button", { name: "정리 시작", exact: true }).click();
   await expect(page.getByText(/수정 전 전사를 바탕으로/)).not.toBeVisible();
   const after = await (
@@ -266,9 +268,11 @@ test("captures fake microphone audio and finalizes before processing", async ({
   await expect(page.getByText("00:01", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "녹음 종료", exact: true }).click();
   await page.getByRole("button", { name: "대화 정리", exact: true }).click();
-  await page.getByLabel("정리 폼", { exact: true }).selectOption("interview");
+  await page.getByLabel("정리 양식", { exact: true }).selectOption("interview");
   await page.getByRole("button", { name: "정리 시작", exact: true }).click();
-  await expect(page.getByText("대화 개요", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "사용자 상황", exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "화자 정보", exact: true }),
   ).toBeVisible();
@@ -277,7 +281,14 @@ test("captures fake microphone audio and finalizes before processing", async ({
   const detail = await result.json();
   expect(detail.recording.source).toBe("microphone");
   expect(detail.recording.input_state).toBe("ready");
-  expect(detail.job.state).toBe("succeeded");
+  await expect
+    .poll(async () => {
+      const current = await (
+        await page.request.get(`/api/recordings/${id}`)
+      ).json();
+      return current.job.state;
+    })
+    .toBe("succeeded");
   await expect
     .poll(() =>
       page.evaluate(
@@ -375,4 +386,53 @@ test("preserves an edit while scrolling a long virtual transcript", async ({
       () => (window as unknown as { layoutErrors: string[] }).layoutErrors,
     ),
   ).toEqual([]);
+});
+
+test("shows decision comparisons and form preview on desktop and mobile", async ({
+  page,
+}) => {
+  const uploaded = await page.request.post("/api/recordings", {
+    multipart: {
+      file: { name: "선택지 검증.wav", mimeType: "audio/wav", buffer: wav() },
+    },
+  });
+  expect(uploaded.ok()).toBe(true);
+  const record = await uploaded.json();
+  await expect
+    .poll(
+      async () => {
+        const detail = await (
+          await page.request.get(`/api/recordings/${record.id}`)
+        ).json();
+        return !!detail.transcript;
+      },
+      { timeout: 20000 },
+    )
+    .toBe(true);
+  await page.goto(`/#record/${record.id}`);
+  await page.getByRole("button", { name: "대화 정리", exact: true }).click();
+  await page.getByLabel("정리 양식", { exact: true }).selectOption("decision");
+  await expect(page.getByRole("list", { name: "정리할 항목" })).toContainText(
+    "선택지 비교",
+  );
+  await page.getByRole("button", { name: "정리 시작", exact: true }).click();
+  const table = page.getByRole("table", { name: "선택지 비교" });
+  await expect(table).toBeVisible();
+  await expect(table).toContainText("다음 주 시작");
+  await expect(
+    page.getByRole("button", { name: "근거 문장 t1", exact: true }),
+  ).toHaveCount(0);
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await table.scrollIntoViewIfNeeded();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: `test-results/analysis-decision-${width}.png`,
+      fullPage: true,
+    });
+  }
 });

@@ -5,7 +5,7 @@ from uuid import uuid4
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
 Mode = Literal["auto", "local_only", "api"]
-AnalysisForm = Literal["meeting", "interview", "project"]
+AnalysisForm = Literal["meeting", "interview", "project", "decision", "progress"]
 
 
 def now() -> datetime:
@@ -180,10 +180,39 @@ class AnalysisBody(Contract):
     actions: list[Action]
 
 
+class ParagraphGroup(Contract):
+    title: str | None
+    paragraphs: list[Fact] = Field(min_length=1)
+
+
+class OptionComparison(Contract):
+    option: str = Field(min_length=1)
+    points: list[Fact] = Field(min_length=1)
+
+
+class FormAction(Action):
+    owner_text: str | None = None
+
+
+class AnalysisSection(Contract):
+    title: str = Field(min_length=1)
+    groups: list[ParagraphGroup] = Field(default_factory=list)
+    comparisons: list[OptionComparison] = Field(default_factory=list)
+    actions: list[FormAction] = Field(default_factory=list)
+
+
+class FormAnalysisBody(Contract):
+    sections: list[AnalysisSection]
+
+    @property
+    def actions(self) -> list[FormAction]:
+        return [action for section in self.sections for action in section.actions]
+
+
 class AnalysisVersion(Contract):
     id: str
     transcript_id: str
-    body: AnalysisBody
+    body: FormAnalysisBody | AnalysisBody
     provider: str
     model: str
     prompt_version: str

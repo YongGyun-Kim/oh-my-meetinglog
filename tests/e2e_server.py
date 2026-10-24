@@ -10,7 +10,7 @@ from meetinglog.db import Database
 from meetinglog.domain import AnalysisVersion, StageRequest, Transcript, new_id
 from meetinglog.recordings.storage import atomic_json
 
-from tests.analysis_fixtures import analysis_fixture, as_speech, transcript_fixture
+from tests.analysis_fixtures import as_speech, form_analysis_fixture, transcript_fixture
 
 
 def stage(path: str):
@@ -26,7 +26,7 @@ def stage(path: str):
         result = AnalysisVersion(
             id=new_id(),
             transcript_id=transcript.id,
-            body=analysis_fixture(),
+            body=form_analysis_fixture(request.form),
             provider="test",
             model="fixed-browser-fixture",
             prompt_version="test-v1",

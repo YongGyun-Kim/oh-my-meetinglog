@@ -1,36 +1,41 @@
 import sys
 
+import pytest
 from meetinglog.domain import AnalysisVersion, new_id
 from meetinglog.jobs.repository import JobRepository
 from meetinglog.jobs.runner import Worker
 
-from tests.analysis_fixtures import analysis_fixture
+from tests.analysis_fixtures import form_analysis_fixture
 from tests.api_fixtures import populated_client
 
 
-def test_selected_form_survives_queue_worker_and_publication(settings, db, tmp_path):
+@pytest.mark.parametrize("form", ["meeting", "project", "decision", "progress", "interview"])
+def test_selected_form_survives_queue_worker_and_publication(settings, db, tmp_path, form):
     client, record_id, transcript = populated_client(settings, db, tmp_path)
     try:
         assert {option["id"] for option in client.get("/api/recordings/analysis-forms").json()} == {
             "meeting",
             "interview",
             "project",
+            "decision",
+            "progress",
         }
         endpoint = f"/api/recordings/{record_id}/analyze"
-        payload = {"mode": "local_only", "transcript_id": transcript.id, "form": "project"}
+        other = "project" if form == "meeting" else "meeting"
+        payload = {"mode": "local_only", "transcript_id": transcript.id, "form": form}
         first = client.post(endpoint, json=payload)
         assert first.status_code == 200
-        assert first.json()["form"] == "project"
+        assert first.json()["form"] == form
         assert client.post(endpoint, json=payload).json()["id"] == first.json()["id"]
-        assert client.post(endpoint, json={**payload, "form": "meeting"}).status_code == 409
+        assert client.post(endpoint, json={**payload, "form": other}).status_code == 409
         assert client.post(endpoint, json={**payload, "form": "unknown"}).status_code == 422
 
         def command(request):
-            assert request.form == "project"
+            assert request.form == form
             version = AnalysisVersion(
                 id=new_id(),
                 transcript_id=transcript.id,
-                body=analysis_fixture(),
+                body=form_analysis_fixture(form),
                 provider="test",
                 model="fixed",
                 prompt_version="3",
@@ -48,10 +53,13 @@ def test_selected_form_survives_queue_worker_and_publication(settings, db, tmp_p
             worker.run_once()
         assert JobRepository(db).get(first.json()["id"]).state == "succeeded"
         detail = client.get(f"/api/recordings/{record_id}").json()
-        assert detail["analysis"]["form"] == "project"
-        second = client.post(endpoint, json={**payload, "form": "meeting"})
+        assert detail["analysis"]["form"] == form
+        exported = client.get(f"/api/recordings/{record_id}/export?format=json").json()
+        assert exported["schema_version"] == 3
+        assert exported["analysis"]["form"] == form
+        second = client.post(endpoint, json={**payload, "form": other})
         assert second.status_code == 200
         assert second.json()["id"] != first.json()["id"]
-        assert second.json()["form"] == "meeting"
+        assert second.json()["form"] == other
     finally:
         client.__exit__(None, None, None)

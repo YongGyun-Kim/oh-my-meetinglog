@@ -1522,3 +1522,33 @@ h1 {
   padding: 10px;
   font: inherit;
 }
+
+.form-preview {
+  padding-left: 22px;
+  margin: 12px 0;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.analysis-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.analysis-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.analysis-table th,
+.analysis-table td {
+  border: 1px solid var(--border);
+  padding: 12px;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.analysis-table th {
+  font-weight: 550;
+}
+.analysis-table .analysis-fact {
+  margin: 0;
+}

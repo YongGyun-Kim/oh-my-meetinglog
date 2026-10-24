@@ -359,13 +359,27 @@ export interface components {
       /** Actions */
       actions: components["schemas"]["Action"][];
     };
+    /** AnalysisSection */
+    AnalysisSection: {
+      /** Title */
+      title: string;
+      /** Groups */
+      groups?: components["schemas"]["ParagraphGroup"][];
+      /** Comparisons */
+      comparisons?: components["schemas"]["OptionComparison"][];
+      /** Actions */
+      actions?: components["schemas"]["FormAction"][];
+    };
     /** AnalysisVersion */
     AnalysisVersion: {
       /** Id */
       id: string;
       /** Transcript Id */
       transcript_id: string;
-      body: components["schemas"]["AnalysisBody"];
+      /** Body */
+      body:
+        | components["schemas"]["FormAnalysisBody"]
+        | components["schemas"]["AnalysisBody"];
       /** Provider */
       provider: string;
       /** Model */
@@ -377,7 +391,7 @@ export interface components {
        * @default meeting
        * @enum {string}
        */
-      form: "meeting" | "interview" | "project";
+      form: "meeting" | "interview" | "project" | "decision" | "progress";
       /**
        * Created At
        * Format: date-time
@@ -397,7 +411,7 @@ export interface components {
        * Form
        * @enum {string}
        */
-      form: "meeting" | "interview" | "project";
+      form: "meeting" | "interview" | "project" | "decision" | "progress";
     };
     /** Body_upload_api_recordings_post */
     Body_upload_api_recordings_post: {
@@ -486,17 +500,37 @@ export interface components {
       /** Last Sequence */
       last_sequence: number;
     };
+    /** FormAction */
+    FormAction: {
+      /** Text */
+      text: string;
+      /** Owner Speaker Id */
+      owner_speaker_id: string | null;
+      /** Due Text */
+      due_text: string | null;
+      /** Evidence Sentence Ids */
+      evidence_sentence_ids: string[];
+      /** Owner Text */
+      owner_text?: string | null;
+    };
+    /** FormAnalysisBody */
+    FormAnalysisBody: {
+      /** Sections */
+      sections: components["schemas"]["AnalysisSection"][];
+    };
     /** FormOption */
     FormOption: {
       /**
        * Id
        * @enum {string}
        */
-      id: "meeting" | "interview" | "project";
+      id: "meeting" | "interview" | "project" | "decision" | "progress";
       /** Title */
       title: string;
       /** Description */
       description: string;
+      /** Sections */
+      sections: string[];
     };
     /** HTTPValidationError */
     HTTPValidationError: {
@@ -532,7 +566,7 @@ export interface components {
        * @default meeting
        * @enum {string}
        */
-      form: "meeting" | "interview" | "project";
+      form: "meeting" | "interview" | "project" | "decision" | "progress";
       /**
        * Created At
        * Format: date-time
@@ -551,6 +585,13 @@ export interface components {
        */
       mode: "auto" | "local_only" | "api";
     };
+    /** OptionComparison */
+    OptionComparison: {
+      /** Option */
+      option: string;
+      /** Points */
+      points: components["schemas"]["Fact"][];
+    };
     /** Overview */
     Overview: {
       /**
@@ -561,6 +602,13 @@ export interface components {
       summary: components["schemas"]["Fact"];
       /** Main Topics */
       main_topics: components["schemas"]["Fact"][];
+    };
+    /** ParagraphGroup */
+    ParagraphGroup: {
+      /** Title */
+      title: string | null;
+      /** Paragraphs */
+      paragraphs: components["schemas"]["Fact"][];
     };
     /** ProcessingEvent */
     ProcessingEvent: {
